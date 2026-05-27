@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Local state and secrets
+.env
+state/
+.railway-token
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# File generati a runtime
+dashboard.html
+markov_report.html
+
+# Walk-forward artifacts (solo dati, non codice)
+state/walkforward/
+
+# Test temporanei
+*.tmp

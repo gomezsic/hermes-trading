@@ -1,0 +1,67 @@
+version: "06"
+entry:
+  indicator: ema_cross
+  ema_fast: 20
+  ema_slow: 50
+  direction: both
+
+stop_loss_pct:           3.0
+partial_exit_pct:        9.0
+trailing_activate_pct:   3.6
+trailing_stop_pct:       2.4
+trailing_stop_tight_pct: 1.5
+sma50d_gate: true
+use_atr_stops: false
+atr_period: 14
+vwap_window: 200
+vwap_filter: false
+
+# Position sizing Kelly + vol targeting
+min_position_size: 0.50
+max_position_size: 1.00
+
+sizing:
+  method: kelly_vol_combined
+  kelly:
+    rolling_window: 150
+    min_trades_for_estimate: 50
+    fraction_significant: 0.25
+    fraction_weak_or_prior: 0.10
+    wilson_z: 1.96
+    prior_p: 0.30
+    prior_b: 2.00
+  vol_target:
+    sigma_target_annual: 0.18
+    atr_period: 14
+    atr_timeframe: "1d"
+    annualization_factor: 19.105
+    shock_multiplier: 2.0
+    shock_size_reduction: 0.5
+    shock_lookback_days: 30
+  caps:
+    max_size_pct: 0.50
+    min_size_pct: 0.05
+  circuit_breakers:
+    edge_check_window: 30
+    edge_check_tolerance: 0.05
+    pause_days_on_edge_loss: 7
+
+# Drawdown protection
+# Circuit breaker: nessun nuovo trade se drawdown >= questa soglia
+max_drawdown_pct: 20.0
+
+# ---------------------------------------------------------------------------
+# SAFE & GUARD — quando restare fuori dal mercato
+# ---------------------------------------------------------------------------
+safe_guard:
+  weekend_guard:           true
+  friday_close_hour_utc:   21
+  friday_close_minute_utc: 0
+  nyse_open_guard:         true
+  nyse_open_wait_minutes:  30
+  calendar_guard:           true
+  pre_event_guard_minutes:  120
+  post_event_guard_minutes:  60
+  close_position_minutes:    30
+  adx_guard:               true
+  adx_min_threshold:       20.0

@@ -1,0 +1,15 @@
+[project]
+name = "hermes-trading"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "ccxt>=4.5.54",
+    "httpx>=0.28.1",
+    "numpy>=2.4.6",
+    "pandas>=3.0.3",
+    "pyyaml>=6.0.3",
+    "rich>=15.0.0",
+    "yfinance>=1.4.0",
+]
