@@ -27,3 +27,6 @@ state/walkforward/
 
 # Test temporanei
 *.tmp
+
+# Superpowers brainstorming artifacts
+.superpowers/
