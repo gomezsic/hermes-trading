@@ -44,3 +44,40 @@ def gross_pnl_pct(entry: float, exit_p: float, side: str) -> float:
     if side == "long":
         return (exit_p - entry) / entry
     return (entry - exit_p) / entry
+
+
+def build_equity_curve(
+    candles: list[dict],
+    trades: list[dict],
+    capital: float,
+) -> list[dict]:
+    """
+    Costruisce equity curve candela per candela.
+
+    Aggiorna il capitale all'exit_idx di ogni trade usando trade["pnl_pct"].
+    Tra trade il capitale resta invariato.
+
+    Returns:
+        lista di dict {ts, equity, drawdown_pct} per ogni candela.
+    """
+    exit_map: dict[int, float] = {}
+    for t in trades:
+        idx = t["exit_idx"]
+        exit_map[idx] = exit_map.get(idx, 0.0) + t["pnl_pct"]
+
+    equity = float(capital)
+    peak = equity
+    curve: list[dict] = []
+
+    for i, c in enumerate(candles):
+        if i in exit_map:
+            equity = equity * (1.0 + exit_map[i])
+        peak = max(peak, equity)
+        dd = (peak - equity) / peak * 100.0 if peak > 0.0 else 0.0
+        curve.append({
+            "ts":           c.get("t", i),
+            "equity":       round(equity, 4),
+            "drawdown_pct": round(dd, 4),
+        })
+
+    return curve
