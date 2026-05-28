@@ -146,6 +146,13 @@ Non toccare HERMES_TRADING_MODE — solo l'operatore decide quando andare live.
 
 ## TODO / PROSSIMI PASSI
 
+### IN CORSO: Backtest Suite + Genetic Algorithm
+  Progetto multi-plan (A→D) per backtest generico + ottimizzatore genetico.
+  Stato dettagliato e handoff: docs/superpowers/BACKTEST_SUITE_STATUS.md
+  - Plan A (engine + Strategy + regression gate) → COMPLETO ✓
+  - Plan B (data lake Kraken + RSI/BB + fitness/GA/grid) → PROSSIMO, 0/10 task
+  - Plan C (persistenza + CLI) e Plan D (server + UI) → scritti, non iniziati
+
 ### Priorità alta
   3. Cron Hermes per reflection automatica ogni 5 trade chiusi
 

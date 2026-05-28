@@ -101,6 +101,17 @@ pbcopy < ~/hermes-trading/config/hermes-briefing.txt
 # Cmd+V dentro Hermes, Invio
 ```
 
+## Backtest Suite + Genetic Algorithm (in corso)
+
+Progetto parallelo per backtest generico + ottimizzatore genetico, in `backtest_suite/` (isolato dal sistema live in `hermes_trading/`). 4 plan sequenziali A→D.
+
+**Stato e handoff completo:** `docs/superpowers/BACKTEST_SUITE_STATUS.md`
+- **Plan A** (engine generico + `Strategy` pluggable + `EmaCrossStrategy` + regression gate bit-perfect): **COMPLETO** ✓ — 28 test suite verdi, regression gate verde.
+- **Plan B** (data lake Kraken/ccxt + RSI/Bollinger + fitness OOS + **GA** + grid search): **PROSSIMO**, 0/10 task.
+- **Plan C/D** (persistenza+CLI, server+UI): scritti, non iniziati.
+
+Regola architetturale: `backtest_suite/` può importare da `hermes_trading/`, MAI il contrario.
+
 ## Cosa MANCA (TODO prioritari)
 
 1. **Grafico BTC/USD con segnale d'ingresso.** Candele 1m/5m + linea RSI + marker visivi dove il bot ha aperto/chiuso. Probabile: `lightweight-charts` di TradingView (open-source, leggero, dark theme nativo). Source dati: il worker già pulla `recent_closes`; potrebbe servire una serie più lunga (es. ultime 200 candele 1m da Kraken via API route Next.js, NO `railway ssh` perché Kraken è pubblica).
