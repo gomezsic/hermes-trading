@@ -65,7 +65,7 @@ def test_run_backtest_returns_result_with_trades_and_curve():
     assert isinstance(result, BacktestResult)
     assert result.n_candles == 300
     assert len(result.equity_curve) == 300
-    assert "sharpe" in result.metrics or result.metrics == {} or "max_drawdown" in result.metrics
+    assert result.metrics["n_trades"] >= 1
 
 
 def test_run_backtest_no_signals_returns_empty_trades():

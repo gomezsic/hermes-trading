@@ -3,7 +3,6 @@ Regression gate: il nuovo engine + EmaCrossStrategy deve produrre output
 bit-perfect identico al backtester legacy. Se questo test fallisce, blocca
 il merge: significa che il refactor ha alterato il comportamento osservabile.
 """
-import math
 import random
 
 from hermes_trading.backtester import run_backtest as legacy_run
