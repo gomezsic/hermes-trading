@@ -40,20 +40,20 @@ class EmaCrossStrategy:
         self._ema_f_cache: list[float | None] | None = None
         self._ema_s_cache: list[float | None] | None = None
         self._vwap_cache: list[float | None] | None  = None
-        self._candles_id: int | None = None
+        self._cached_candles: list[dict] | None = None
 
     def warmup_bars(self) -> int:
         return self.ema_slow
 
     def _ensure_caches(self, candles: list[dict]) -> None:
-        if self._candles_id == id(candles):
+        if self._cached_candles is candles:
             return
         closes = [float(c["c"]) for c in candles]
         self._ema_f_cache = _compute_ema(closes, self.ema_fast)
         self._ema_s_cache = _compute_ema(closes, self.ema_slow)
         self._vwap_cache  = _compute_vwap_rolling(candles, self.vwap_window) \
             if self.vwap_filter else None
-        self._candles_id  = id(candles)
+        self._cached_candles = candles
 
     def on_bar(self, idx: int, candles: list[dict]) -> Signal:
         self._ensure_caches(candles)
