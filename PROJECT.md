@@ -26,11 +26,11 @@ Sistema self-improving paper-trading completo, deployato e operativo dal 2026-05
 
 | Path | Cosa |
 |---|---|
-| `~/hermes-trading/` | Worker Python (uv project) — **questa cartella** |
-| `~/hermes-trading/state/` | State files locali (mirror parziale, vero state su Railway in `/app/state`) |
-| `~/hermes-trading/.railway-token` | Railway API token, gitignored, perms 600 |
-| `~/hermes-trading-config/` | Dump pull-da-Railway: `strategy.yaml`, `hypotheses.jsonl`, `trades.jsonl`, `hermes-briefing.txt` |
-| `~/hermes-trading-ui/` | Dashboard Next.js 16.2.6 (TS, Tailwind 4, App Router) |
+| `~/hermes-trading/worker/` | Worker Python (uv project) — **questa cartella** |
+| `~/hermes-trading/worker/state/` | State files locali (mirror parziale, vero state su Railway in `/app/state`) |
+| `~/hermes-trading/worker/.railway-token` | Railway API token, gitignored, perms 600 |
+| `~/hermes-trading/config/` | Dump pull-da-Railway: `strategy.yaml`, `hypotheses.jsonl`, `trades.jsonl`, `hermes-briefing.txt` |
+| `~/hermes-trading/ui/` | Dashboard Next.js 16.2.6 (TS, Tailwind 4, App Router) |
 | `~/.hermes/` | Hermes CLI install (v0.14.0) |
 | `~/.hermes/.env` | Contiene `ANTHROPIC_API_KEY` e `RAILWAY_API_TOKEN` |
 | `~/Desktop/Hermes Dashboard.command` | Launcher doppio-clickabile per aprire la UI |
@@ -67,7 +67,7 @@ Sistema self-improving paper-trading completo, deployato e operativo dal 2026-05
 
 ## Hermes loop
 
-Briefing in `~/hermes-trading-config/hermes-briefing.txt`. Hermes deve:
+Briefing in `~/hermes-trading/config/hermes-briefing.txt`. Hermes deve:
 1. `railway logs --tail 200` ogni 30 min
 2. Quando 5 nuovi trade chiusi: `railway ssh "cat /app/state/trades.jsonl"` + strategy
 3. Genera 1-3 hypothesis JSON (schema fisso: variable/current_value/proposed_value/rationale/predicted_score_delta/confidence)
@@ -77,7 +77,7 @@ Hard constraint nel briefing: MAI cambiare più di una variabile, MAI flip `HERM
 
 ## Dashboard Next.js
 
-`~/hermes-trading-ui/src/`:
+`~/hermes-trading/ui/src/`:
 - `lib/railway.ts` — helper `fetchStateSnapshot()` (single multi-cat ssh) + `spawnRailwayLogs()` (long-lived child process)
 - `lib/types.ts` — TypeScript types per heartbeat/goal/strategy/trade/hypothesis/log
 - `lib/useEventStream.ts` — React hook per `EventSource` con handlers per-event
@@ -90,14 +90,14 @@ Hard constraint nel briefing: MAI cambiare più di una variabile, MAI flip `HERM
 ## Come avviare la dashboard
 
 - **Doppio-click su `~/Desktop/Hermes Dashboard.command`** (più semplice)
-- oppure: `cd ~/hermes-trading-ui && npm run dev` poi apri http://localhost:3000
+- oppure: `cd ~/hermes-trading/ui && npm run dev` poi apri http://localhost:3000
 
 ## Come avviare/riavviare Hermes
 
 ```bash
 hermes
 # poi incolla il briefing:
-pbcopy < ~/hermes-trading-config/hermes-briefing.txt
+pbcopy < ~/hermes-trading/config/hermes-briefing.txt
 # Cmd+V dentro Hermes, Invio
 ```
 
@@ -130,16 +130,16 @@ pbcopy < ~/hermes-trading-config/hermes-briefing.txt
 
 ```bash
 # Log worker live dal terminale
-cd ~/hermes-trading && export RAILWAY_API_TOKEN=$(cat .railway-token) && railway logs
+cd ~/hermes-trading/worker && export RAILWAY_API_TOKEN=$(cat .railway-token) && railway logs
 
 # Pull state files freschi da Railway
-cd ~/hermes-trading && export RAILWAY_API_TOKEN=$(cat .railway-token) && \
-  railway ssh cat /app/state/strategy.yaml > ~/hermes-trading-config/strategy.yaml 2>/dev/null && \
-  railway ssh cat /app/state/trades.jsonl > ~/hermes-trading-config/trades.jsonl 2>/dev/null && \
-  railway ssh cat /app/state/hypotheses.jsonl > ~/hermes-trading-config/hypotheses.jsonl 2>/dev/null
+cd ~/hermes-trading/worker && export RAILWAY_API_TOKEN=$(cat .railway-token) && \
+  railway ssh cat /app/state/strategy.yaml > ~/hermes-trading/config/strategy.yaml 2>/dev/null && \
+  railway ssh cat /app/state/trades.jsonl > ~/hermes-trading/config/trades.jsonl 2>/dev/null && \
+  railway ssh cat /app/state/hypotheses.jsonl > ~/hermes-trading/config/hypotheses.jsonl 2>/dev/null
 
 # Forzare reflection fallback (deterministica)
-cd ~/hermes-trading && export RAILWAY_API_TOKEN=$(cat .railway-token) && \
+cd ~/hermes-trading/worker && export RAILWAY_API_TOKEN=$(cat .railway-token) && \
   railway ssh uv run python -m hermes_trading.reflect --fallback
 
 # Killare il dev server della UI

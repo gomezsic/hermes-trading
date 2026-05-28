@@ -28,11 +28,11 @@ Non toccare HERMES_TRADING_MODE — solo l'operatore decide quando andare live.
   railway ssh "cat /app/state/strategy.yaml"   # strategia nel container
   railway ssh "cat /app/state/trades.jsonl"    # trade chiusi
   railway deployment list          # lista deploy
-  cd ~/hermes-trading && railway up --detach   # deploy nuovo codice
+  cd ~/hermes-trading/worker && railway up --detach   # deploy nuovo codice
 
 ---
 
-## CODEBASE LOCALE: ~/hermes-trading/
+## CODEBASE LOCALE: ~/hermes-trading/worker/
 
 ### Struttura
   hermes_trading/
@@ -126,11 +126,11 @@ Non toccare HERMES_TRADING_MODE — solo l'operatore decide quando andare live.
 ## REPORT DINAMICO
 
 ### File
-  ~/hermes-trading/generate_report.py
+  ~/hermes-trading/worker/generate_report.py
 
 ### Come generare
-  cd ~/hermes-trading && uv run python generate_report.py --ticker BTC-USD --years 2 --threshold 0.08
-  open ~/hermes-trading/markov_report.html
+  cd ~/hermes-trading/worker && uv run python generate_report.py --ticker BTC-USD --years 2 --threshold 0.08
+  open ~/hermes-trading/worker/markov_report.html
 
 ### Contenuto del report
   - Grafico prezzo daily colorato per regime (rosso/giallo/verde)
@@ -157,7 +157,7 @@ Non toccare HERMES_TRADING_MODE — solo l'operatore decide quando andare live.
   ✓ Markov daily regime integrato nel loop (blocca entry in Bear, refresh 60min)
   ✓ Cron reflection: job_id=2cf1e835b079, ogni 30min, trigger ogni 5 trade chiusi
   ✓ Dashboard operativo: generate_dashboard.py → dashboard.html (auto-refresh 60s)
-     Per aggiornare: cd ~/hermes-trading && uv run python generate_dashboard.py && open dashboard.html
+     Per aggiornare: cd ~/hermes-trading/worker && uv run python generate_dashboard.py && open dashboard.html
 
 ---
 
@@ -179,6 +179,6 @@ Non toccare HERMES_TRADING_MODE — solo l'operatore decide quando andare live.
 
 - HERMES_TRADING_MODE=paper sempre. Solo l'operatore flippa a live.
 - Un solo variabile per ciclo di riflessione (one_variable_only: true).
-- Ipotesi extra → ~/hermes-trading/state/pending.jsonl, non applicare subito.
+- Ipotesi extra → ~/hermes-trading/worker/state/pending.jsonl, non applicare subito.
 - Ogni modifica a strategy.yaml: bump version (zero-padded), salva history/.
-- Writes solo dentro ~/hermes-trading/ (locale) e /app/ (Railway).
+- Writes solo dentro ~/hermes-trading/worker/ (locale) e /app/ (Railway).
