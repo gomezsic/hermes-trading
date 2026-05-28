@@ -41,3 +41,11 @@ def test_strategy_protocol_runtime_check_minimal():
     assert d.warmup_bars() == 0
     assert d.on_bar(0, []).side is None
     assert Dummy.strategy_id == "dummy"
+
+
+def test_strategy_registry_contains_ema_cross():
+    from backtest_suite.strategies import STRATEGY_REGISTRY
+    from backtest_suite.strategies.ema_cross import EmaCrossStrategy
+
+    assert "ema_cross" in STRATEGY_REGISTRY
+    assert STRATEGY_REGISTRY["ema_cross"] is EmaCrossStrategy
