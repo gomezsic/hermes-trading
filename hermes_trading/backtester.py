@@ -32,13 +32,16 @@ from hermes_trading.score import (
     compute_ulcer_index,
     compute_win_stats,
 )
-
-# ---------------------------------------------------------------------------
-# Costanti di costo (Kraken taker fee + slippage market order)
-# ---------------------------------------------------------------------------
-
-TAKER_FEE: float = 0.0026   # 0.26% per singola leg (entry o exit)
-SLIPPAGE:  float = 0.0005   # 5 bp per market order, applicato al prezzo di fill
+from hermes_trading._engine_core import (
+    TAKER_FEE,
+    SLIPPAGE,
+    RiskConfig,
+    apply_slippage_entry as _apply_slippage_entry,
+    apply_slippage_exit  as _apply_slippage_exit,
+    gross_pnl_pct        as _gross_pnl_pct,
+    build_equity_curve   as _build_equity_curve_core,
+    simulate_trade       as _simulate_trade_core,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +120,7 @@ def _compute_vwap_rolling(candles: list[dict], window: int) -> list[float | None
 # ---------------------------------------------------------------------------
 
 
-def _param_hash(strategy: dict) -> str:
+def _param_hash(strategy: dict) -> str:  # noqa: keep — local only
     """
     Calcola un hash deterministico dei parametri chiave della strategia.
 
@@ -140,61 +143,6 @@ def _param_hash(strategy: dict) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:8]
 
 
-def _apply_slippage_entry(price: float, side: str) -> float:
-    """
-    Applica lo slippage al prezzo di entrata.
-
-    Per ordini long (acquisto) lo slippage peggiora il prezzo verso l'alto.
-    Per ordini short (vendita allo scoperto) lo slippage peggiora verso il basso.
-
-    Args:
-        price: prezzo teorico di entrata (tipicamente l'open della candela)
-        side:  "long" o "short"
-
-    Returns:
-        prezzo di entrata aggiustato per slippage
-    """
-    if side == "long":
-        return price * (1.0 + SLIPPAGE)
-    return price * (1.0 - SLIPPAGE)
-
-
-def _apply_slippage_exit(price: float, side: str) -> float:
-    """
-    Applica lo slippage al prezzo di uscita.
-
-    Per uscite long (vendita) lo slippage abbassa il prezzo ricevuto.
-    Per uscite short (riacquisto) lo slippage alza il prezzo pagato.
-
-    Args:
-        price: prezzo teorico di uscita (stop, target, close candela)
-        side:  "long" o "short"
-
-    Returns:
-        prezzo di uscita aggiustato per slippage
-    """
-    if side == "long":
-        return price * (1.0 - SLIPPAGE)
-    return price * (1.0 + SLIPPAGE)
-
-
-def _gross_pnl_pct(entry: float, exit_p: float, side: str) -> float:
-    """
-    Calcola il PnL lordo percentuale (senza fee) rispetto al prezzo di entrata.
-
-    Args:
-        entry:  prezzo di entrata effettivo (gia' con slippage)
-        exit_p: prezzo di uscita effettivo (gia' con slippage)
-        side:   "long" o "short"
-
-    Returns:
-        pnl_gross come decimale (es. 0.05 = +5%, -0.03 = -3%)
-    """
-    if side == "long":
-        return (exit_p - entry) / entry
-    return (entry - exit_p) / entry
-
-
 # ---------------------------------------------------------------------------
 # Simulazione singolo trade
 # ---------------------------------------------------------------------------
@@ -206,185 +154,15 @@ def _simulate_trade(
     side:      str,
     strategy:  dict,
 ) -> dict:
-    """
-    Simula l'esecuzione di un singolo trade candela per candela.
-
-    Logica intra-candela (applicata in ordine conservativo):
-      1. Controlla l'estremo avverso (low per long, high per short):
-         a. Stop loss fisso
-         b. Trailing stop (se attivo)
-      2. Controlla l'estremo favorevole (high per long, low per short):
-         a. Aggiorna best_price e trailing stop level
-         b. Segna partial exit se target raggiunto
-
-    Questo ordine assume che, a parita' di candela, il movimento avverso
-    avvenga prima di quello favorevole — approccio conservativo standard.
-
-    Fee: 2 * TAKER_FEE (0.52% totale) indipendentemente dalla partial exit,
-    poiche' la partial suddivide i volumi ma non le leg (entry e' sempre 1).
-
-    Args:
-        candles:   lista completa di candele OHLCV
-        entry_idx: indice della candela di entrata (gia' con latenza applicata)
-        side:      "long" o "short"
-        strategy:  dict con i parametri della strategia
-
-    Returns:
-        dict del trade con: entry, exit, side, pnl_pct, pnl_pct_gross,
-        fee_paid, reason, entry_idx, exit_idx, partial_done
-    """
-    sl_pct         = strategy.get("stop_loss_pct", 5.0)         / 100.0
-    partial_pct    = strategy.get("partial_exit_pct", 12.0)      / 100.0
-    trail_act_pct  = strategy.get("trailing_activate_pct", 6.0)  / 100.0
-    trail_dist_pct = strategy.get("trailing_stop_pct", 4.0)      / 100.0
-    tight_dist_pct = strategy.get("trailing_stop_tight_pct", 2.5) / 100.0
-
-    # Prezzo di entrata: open della candela entry_idx + slippage
-    entry = _apply_slippage_entry(float(candles[entry_idx]["o"]), side)
-
-    # Livelli di stop e target (prezzi assoluti)
-    if side == "long":
-        sl_price      = entry * (1.0 - sl_pct)
-        partial_price = entry * (1.0 + partial_pct)
-    else:
-        sl_price      = entry * (1.0 + sl_pct)
-        partial_price = entry * (1.0 - partial_pct)
-
-    # Stato del trailing stop
-    trail_active:   bool          = False
-    trail_level:    float | None  = None
-    partial_done:   bool          = False
-    partial_exit_p: float | None  = None
-
-    # Miglior prezzo raggiunto dalla direzione favorevole (aggiornato su every candle)
-    best_price: float = entry
-
-    # Risultati trade
-    exit_p:   float | None = None
-    exit_idx: int | None   = None
-    reason:   str          = "forced_close"
-
-    n = len(candles)
-
-    for i in range(entry_idx, n):
-        c  = candles[i]
-        lo = float(c["l"])
-        hi = float(c["h"])
-
-        # ----------------------------------------------------------------
-        # Step 1 — Controlla estremo avverso (conservativo: worst case first)
-        # ----------------------------------------------------------------
-        if side == "long":
-            # Stop loss fisso
-            if lo <= sl_price:
-                exit_p   = _apply_slippage_exit(sl_price, side)
-                exit_idx = i
-                reason   = "stop_loss"
-                break
-
-            # Trailing stop
-            if trail_active and trail_level is not None and lo <= trail_level:
-                exit_p   = _apply_slippage_exit(trail_level, side)
-                exit_idx = i
-                reason   = "trailing_stop"
-                break
-
-        else:  # short
-            # Stop loss fisso
-            if hi >= sl_price:
-                exit_p   = _apply_slippage_exit(sl_price, side)
-                exit_idx = i
-                reason   = "stop_loss"
-                break
-
-            # Trailing stop
-            if trail_active and trail_level is not None and hi >= trail_level:
-                exit_p   = _apply_slippage_exit(trail_level, side)
-                exit_idx = i
-                reason   = "trailing_stop"
-                break
-
-        # ----------------------------------------------------------------
-        # Step 2 — Aggiorna best price e trailing con estremo favorevole
-        # ----------------------------------------------------------------
-        if side == "long":
-            if hi > best_price:
-                best_price = hi
-                gain = (best_price - entry) / entry
-                if gain >= trail_act_pct:
-                    trail_active = True
-                    dist      = tight_dist_pct if partial_done else trail_dist_pct
-                    new_trail = best_price * (1.0 - dist)
-                    trail_level = max(trail_level or 0.0, new_trail)
-
-            # Partial exit
-            if not partial_done and hi >= partial_price:
-                partial_done   = True
-                partial_exit_p = _apply_slippage_exit(partial_price, side)
-                # Passa al trailing stretto
-                if trail_active and trail_level is not None:
-                    new_trail   = best_price * (1.0 - tight_dist_pct)
-                    trail_level = max(trail_level, new_trail)
-
-        else:  # short
-            if lo < best_price:
-                best_price = lo
-                gain = (entry - best_price) / entry
-                if gain >= trail_act_pct:
-                    trail_active = True
-                    dist      = tight_dist_pct if partial_done else trail_dist_pct
-                    new_trail = best_price * (1.0 + dist)
-                    trail_level = min(
-                        trail_level if trail_level is not None else math.inf,
-                        new_trail,
-                    )
-
-            # Partial exit
-            if not partial_done and lo <= partial_price:
-                partial_done   = True
-                partial_exit_p = _apply_slippage_exit(partial_price, side)
-                if trail_active and trail_level is not None:
-                    new_trail   = best_price * (1.0 + tight_dist_pct)
-                    trail_level = min(trail_level, new_trail)
-
-    # ----------------------------------------------------------------
-    # Chiusura forzata sull'ultima candela disponibile
-    # ----------------------------------------------------------------
-    if exit_p is None:
-        last     = candles[-1]
-        exit_p   = _apply_slippage_exit(float(last["c"]), side)
-        exit_idx = n - 1
-        reason   = "forced_close"
-
-    assert exit_idx is not None
-
-    # ----------------------------------------------------------------
-    # Calcolo PnL (con eventuale partial exit al 50%)
-    # ----------------------------------------------------------------
-    if partial_done and partial_exit_p is not None:
-        gross_partial   = _gross_pnl_pct(entry, partial_exit_p, side)
-        gross_remaining = _gross_pnl_pct(entry, exit_p, side)
-        pnl_gross = 0.5 * gross_partial + 0.5 * gross_remaining
-    else:
-        pnl_gross = _gross_pnl_pct(entry, exit_p, side)
-
-    # Fee totale: entry leg + exit leg = 2 * TAKER_FEE
-    # (la partial suddivide i volumi ma le leg rimangono 2 in termini di costo %)
-    fee_paid = 2.0 * TAKER_FEE
-    pnl_net  = pnl_gross - fee_paid
-
-    return {
-        "entry":         round(entry, 6),
-        "exit":          round(exit_p, 6),
-        "side":          side,
-        "pnl_pct":       round(pnl_net, 8),
-        "pnl_pct_gross": round(pnl_gross, 8),
-        "fee_paid":      round(fee_paid, 6),
-        "reason":        reason,
-        "entry_idx":     entry_idx,
-        "exit_idx":      exit_idx,
-        "partial_done":  partial_done,
-    }
+    """Adapter: costruisce RiskConfig dalla strategy dict e delega a _engine_core."""
+    risk = RiskConfig(
+        stop_loss_pct           = strategy.get("stop_loss_pct", 5.0)            / 100.0,
+        partial_exit_pct        = strategy.get("partial_exit_pct", 12.0)         / 100.0,
+        trailing_activate_pct   = strategy.get("trailing_activate_pct", 6.0)     / 100.0,
+        trailing_stop_pct       = strategy.get("trailing_stop_pct", 4.0)         / 100.0,
+        trailing_stop_tight_pct = strategy.get("trailing_stop_tight_pct", 2.5)   / 100.0,
+    )
+    return _simulate_trade_core(candles, entry_idx, side, risk)
 
 
 # ---------------------------------------------------------------------------
@@ -397,43 +175,8 @@ def _build_equity_curve(
     trades:  list[dict],
     capital: float,
 ) -> list[dict]:
-    """
-    Costruisce la equity curve candela per candela sull'intera serie storica.
-
-    Il capitale viene aggiornato alla candela di chiusura di ogni trade usando
-    il pnl_pct netto. Tra un trade e l'altro il capitale resta invariato
-    (nessun rendimento sul cash idle — approccio conservativo).
-
-    Args:
-        candles: lista completa di candele OHLCV
-        trades:  lista di trade gia' simulati (output di _simulate_trade)
-        capital: capitale iniziale in valuta (es. 10000.0 USD)
-
-    Returns:
-        lista di dict con {ts, equity, drawdown_pct} per ogni candela
-    """
-    # Mappa exit_idx -> pnl_pct accumulato (raro avere piu' trade sullo stesso idx)
-    exit_map: dict[int, float] = {}
-    for t in trades:
-        idx = t["exit_idx"]
-        exit_map[idx] = exit_map.get(idx, 0.0) + t["pnl_pct"]
-
-    equity = float(capital)
-    peak   = equity
-    curve: list[dict] = []
-
-    for i, c in enumerate(candles):
-        if i in exit_map:
-            equity = equity * (1.0 + exit_map[i])
-        peak = max(peak, equity)
-        dd   = (peak - equity) / peak * 100.0 if peak > 0.0 else 0.0
-        curve.append({
-            "ts":           c.get("t", i),
-            "equity":       round(equity, 4),
-            "drawdown_pct": round(dd, 4),
-        })
-
-    return curve
+    """Adapter verso _engine_core.build_equity_curve."""
+    return _build_equity_curve_core(candles, trades, capital)
 
 
 def _compute_metrics(trades: list[dict]) -> dict:
