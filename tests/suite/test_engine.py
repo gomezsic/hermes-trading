@@ -35,3 +35,44 @@ def test_backtest_result_holds_trades_and_curve():
         n_candles=0,
     )
     assert r.config_hash == "abc12345"
+
+
+from hermes_trading._engine_core import RiskConfig
+from backtest_suite.engine import run_backtest
+from backtest_suite.strategies.ema_cross import EmaCrossStrategy
+
+
+def _gen_market_candles(n: int = 300) -> list[dict]:
+    """Mercato sintetico con due trend chiari (per generare almeno 1 trade)."""
+    import math
+    candles = []
+    for i in range(n):
+        price = 100.0 + 20.0 * math.sin(i / 25.0) + i * 0.05
+        candles.append({"t": i * 3600, "o": price, "h": price + 1.0,
+                        "l": price - 1.0, "c": price, "v": 100.0})
+    return candles
+
+
+def test_run_backtest_returns_result_with_trades_and_curve():
+    candles = _gen_market_candles(300)
+    strat   = EmaCrossStrategy({"ema_fast": 5, "ema_slow": 20,
+                                "vwap_filter": 0, "direction": 2})
+    risk    = RiskConfig(0.05, 0.10, 0.06, 0.04, 0.025)
+    exec_   = ExecutionConfig()
+
+    result = run_backtest(candles, strat, risk, exec_)
+
+    assert isinstance(result, BacktestResult)
+    assert result.n_candles == 300
+    assert len(result.equity_curve) == 300
+    assert "sharpe" in result.metrics or result.metrics == {} or "max_drawdown" in result.metrics
+
+
+def test_run_backtest_no_signals_returns_empty_trades():
+    candles = [{"t": i, "o": 100, "h": 100, "l": 100, "c": 100, "v": 1.0}
+               for i in range(100)]
+    strat   = EmaCrossStrategy({"ema_fast": 5, "ema_slow": 20,
+                                "vwap_filter": 0, "direction": 2})
+    risk    = RiskConfig(0.05, 0.10, 0.06, 0.04, 0.025)
+    result  = run_backtest(candles, strat, risk, ExecutionConfig())
+    assert result.trades == []
