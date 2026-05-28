@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 
 from hermes_trading.score import (
     compute_calmar,
@@ -33,12 +32,7 @@ from hermes_trading.score import (
     compute_win_stats,
 )
 from hermes_trading._engine_core import (
-    TAKER_FEE,
-    SLIPPAGE,
     RiskConfig,
-    apply_slippage_entry as _apply_slippage_entry,
-    apply_slippage_exit  as _apply_slippage_exit,
-    gross_pnl_pct        as _gross_pnl_pct,
     build_equity_curve   as _build_equity_curve_core,
     simulate_trade       as _simulate_trade_core,
 )
