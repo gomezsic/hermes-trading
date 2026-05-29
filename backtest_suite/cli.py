@@ -64,6 +64,47 @@ def _cmd_not_yet(args) -> int:
     return 2
 
 
+def _cmd_evolve(args) -> int:
+    from backtest_suite import data_lake
+    from backtest_suite.config import load_run_config
+    from backtest_suite.orchestrator import RunOrchestrator
+    cfg = load_run_config(args.config)
+    candles = data_lake.load(cfg.symbol, cfg.timeframe,
+                             since=cfg.range.since, until=cfg.range.until)
+    orch = RunOrchestrator(
+        config=cfg, candles=candles,
+        db_path=Path("data/backtests/catalog.db"),
+        runs_dir=Path("data/backtests/runs"),
+    )
+    out = orch.evolve()
+    print(out)
+    return 0 if out["status"] == "finished" else 1
+
+
+def _cmd_grid(args) -> int:
+    from backtest_suite import data_lake
+    from backtest_suite.config import load_run_config
+    from backtest_suite.orchestrator import RunOrchestrator
+    cfg = load_run_config(args.config)
+    candles = data_lake.load(cfg.symbol, cfg.timeframe,
+                             since=cfg.range.since, until=cfg.range.until)
+    orch = RunOrchestrator(
+        config=cfg, candles=candles,
+        db_path=Path("data/backtests/catalog.db"),
+        runs_dir=Path("data/backtests/runs"),
+    )
+    out = orch.grid()
+    print(out)
+    return 0 if out["status"] == "finished" else 1
+
+
+def _cmd_run(args) -> int:
+    # Singolo backtest: usa primo individuo della grid (caso degenere) o richiede
+    # specifica via config separato. Per il momento riusa il path grid con max_combos=1.
+    print("'run' singolo: usa 'grid' con max_combos=1 per ora.", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -71,10 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     handlers = {
         "fetch":  _cmd_fetch,
-        "run":    _cmd_not_yet,
-        "grid":   _cmd_not_yet,
-        "evolve": _cmd_not_yet,
-        "ui":     _cmd_not_yet,
+        "run":    _cmd_run,
+        "grid":   _cmd_grid,
+        "evolve": _cmd_evolve,
+        "ui":     _cmd_not_yet,        # arriva in Plan D
     }
     return handlers[args.command](args)
 
