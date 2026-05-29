@@ -27,7 +27,8 @@ EXCHANGE = "kraken"
 
 
 def _symbol_dir(root: Path, symbol: str, timeframe: str) -> Path:
-    return root / EXCHANGE / symbol / timeframe
+    # Coercizione a Path: fetch/load/coverage accettano root anche come str.
+    return Path(root) / EXCHANGE / symbol / timeframe
 
 
 def _to_unix(dt: datetime) -> int:

@@ -163,3 +163,10 @@ def test_read_range_ignores_non_year_parquet(tmp_path: Path):
 
     out = read_range(base_dir, since=None, until=None)
     assert len(out) == 5   # solo le candele valide del 2024, il file estraneo è ignorato
+
+
+def test_coverage_accepts_str_root(tmp_path):
+    # root passato come stringa non deve sollevare TypeError (coercito a Path)
+    rep = coverage("BTCUSDT", "1h", root=str(tmp_path))
+    assert rep["n_candles"] == 0
+
