@@ -11,7 +11,7 @@ import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from backtest_suite.data_lake import kraken_source
+from backtest_suite.data_lake import binance_bulk_source, kraken_source
 from backtest_suite.data_lake.parquet_store import (
     coverage_report,
     detect_gaps,
@@ -23,12 +23,16 @@ from backtest_suite.data_lake.parquet_store import (
 log = logging.getLogger(__name__)
 
 DEFAULT_ROOT = Path("data/ohlcv")
-EXCHANGE = "kraken"
+EXCHANGE = "kraken"          # default storico (retrocompatibilità)
+
+# Sorgenti dati supportate: nome → exchange dir sotto root.
+_SOURCES = ("kraken", "binance")
 
 
-def _symbol_dir(root: Path, symbol: str, timeframe: str) -> Path:
+def _symbol_dir(root: Path, symbol: str, timeframe: str,
+                exchange: str = EXCHANGE) -> Path:
     # Coercizione a Path: fetch/load/coverage accettano root anche come str.
-    return Path(root) / EXCHANGE / symbol / timeframe
+    return Path(root) / exchange / symbol / timeframe
 
 
 def _to_unix(dt: date | datetime) -> int:
@@ -49,16 +53,23 @@ def fetch(
     until:         datetime,
     force_refresh: bool = False,
     root:          Path = DEFAULT_ROOT,
+    source:        str = "kraken",
 ) -> int:
     """
     Scarica e cachea candele OHLCV.
 
+    source="kraken" → API ccxt (ultime ~720 candele, shallow).
+    source="binance" → archivi pubblici data.binance.vision (storia profonda, no auth).
+
     Idempotente: se force_refresh=False e il range richiesto è già coperto, ritorna 0
-    senza chiamare l'exchange. Altrimenti scarica i buchi.
+    senza chiamare la sorgente. Altrimenti scarica.
 
     Returns: numero di candele effettivamente scaricate/scritte.
     """
-    base_dir = _symbol_dir(root, symbol, timeframe)
+    if source not in _SOURCES:
+        raise ValueError(f"source non supportata: {source} (attese: {_SOURCES})")
+
+    base_dir = _symbol_dir(root, symbol, timeframe, exchange=source)
     since_ts = align_timestamp(_to_unix(since), timeframe)
     until_ts = align_timestamp(_to_unix(until), timeframe)
 
@@ -71,7 +82,10 @@ def fetch(
                          symbol, timeframe, since_ts, until_ts)
                 return 0
 
-    candles = kraken_source.fetch_ohlcv_range(symbol, timeframe, since_ts, until_ts)
+    if source == "binance":
+        candles = binance_bulk_source.fetch_ohlcv_bulk(symbol, timeframe, since, until)
+    else:
+        candles = kraken_source.fetch_ohlcv_range(symbol, timeframe, since_ts, until_ts)
     if not candles:
         return 0
 
@@ -97,12 +111,13 @@ def load(
     since:     datetime | None = None,
     until:     datetime | None = None,
     root:      Path = DEFAULT_ROOT,
+    exchange:  str = EXCHANGE,
 ) -> list[dict]:
     """Carica candele dal parquet locale. Errore se la directory non esiste."""
-    base_dir = _symbol_dir(root, symbol, timeframe)
+    base_dir = _symbol_dir(root, symbol, timeframe, exchange=exchange)
     if not base_dir.exists():
         raise FileNotFoundError(
-            f"Nessun dato per {symbol} {timeframe}. Esegui: "
+            f"Nessun dato per {symbol} {timeframe} ({exchange}). Esegui: "
             f"hermes-bt fetch {symbol} {timeframe} --since <data>"
         )
     s = _to_unix(since) if since else None
@@ -110,11 +125,12 @@ def load(
     return read_range(base_dir, since=s, until=u)
 
 
-def coverage(symbol: str, timeframe: str, root: Path = DEFAULT_ROOT) -> dict:
+def coverage(symbol: str, timeframe: str, root: Path = DEFAULT_ROOT,
+             exchange: str = EXCHANGE) -> dict:
     """Riporta la coverage map per la coppia (symbol, timeframe)."""
-    base_dir = _symbol_dir(root, symbol, timeframe)
+    base_dir = _symbol_dir(root, symbol, timeframe, exchange=exchange)
     rep = coverage_report(base_dir, timeframe)
     rep["symbol"]    = symbol
     rep["timeframe"] = timeframe
-    rep["exchange"]  = EXCHANGE
+    rep["exchange"]  = exchange
     return rep
