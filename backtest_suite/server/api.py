@@ -120,6 +120,39 @@ def build_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="run non attivo")
         return {"ok": True}
 
+    @router.post("/runs/{run_id}/individuals/{ind_id}/promote")
+    async def promote(request: Request, run_id: int, ind_id: str,
+                      payload: dict):
+        import json
+        import yaml
+        from pathlib import Path
+
+        db = request.app.state.db
+        top = db.top_individuals(run_id, k=1000)
+        target = next((r for r in top if r["individual_id"] == ind_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="individuo non trovato")
+
+        params = json.loads(target["params_json"])
+        target_path = Path(payload.get("target_path", "state/strategy.yaml"))
+
+        current = yaml.safe_load(target_path.read_text()) if target_path.exists() else {}
+        diff: dict[str, dict] = {}
+
+        # Strategy params: scrive le chiavi così come sono nel dict
+        for k, v in params["strategy_params"].items():
+            diff[k] = {"da": current.get(k), "a": v}
+            current[k] = v
+        # Risk params: convertiti da decimale a percentuale per coerenza yaml legacy
+        for k, v in params["risk_params"].items():
+            yaml_v = round(float(v) * 100.0, 4)
+            diff[k] = {"da": current.get(k), "a": yaml_v}
+            current[k] = yaml_v
+
+        target_path.write_text(yaml.safe_dump(current, allow_unicode=True,
+                                              sort_keys=False))
+        return {"diff": diff, "wrote": str(target_path)}
+
     return router
 
 

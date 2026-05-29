@@ -132,3 +132,36 @@ async def test_post_runs_stop_returns_ok(client_with_data: httpx.AsyncClient):
     r = await client_with_data.post("/api/runs/1/stop")
     # 200 anche se il run non esiste (non blocchiamo idempotency)
     assert r.status_code in (200, 404)
+
+
+@pytest.mark.asyncio
+async def test_promote_writes_to_strategy_yaml(client: httpx.AsyncClient, tmp_path):
+    db = client._transport.app.state.db  # type: ignore[attr-defined]
+    run_id = db.create_run("ga", "BTCUSDT", "1h", "runs/0001/manifest.yaml")
+    from backtest_suite.optimizer.types import IndividualConfig, FitnessResult, Scored
+    ind = IndividualConfig(
+        strategy_id="ema_cross",
+        strategy_params={"ema_fast": 12, "ema_slow": 35, "vwap_window": 150,
+                         "vwap_filter": 0, "direction": 2},
+        risk_params={"stop_loss_pct": 0.035, "partial_exit_pct": 0.10,
+                     "trailing_activate_pct": 0.06, "trailing_stop_pct": 0.04,
+                     "trailing_stop_tight_pct": 0.02},
+    )
+    detail = FitnessResult(fitness=1.5, per_window_scores=[1.5], mean_score=1.5,
+                           stdev_score=0.0, max_drawdown_observed=0.1,
+                           n_trades_total=30, failed=False, failure_reason=None)
+    db.insert_generation(run_id, 0, [Scored(individual=ind, fitness=1.5, detail=detail)])
+
+    target = tmp_path / "strategy.yaml"
+    target.write_text("version: '06'\nstop_loss_pct: 3.0\n")
+
+    r = await client.post(f"/api/runs/{run_id}/individuals/G000-001/promote",
+                          json={"target_path": str(target)})
+    assert r.status_code == 200
+    body = r.json()
+    assert "diff" in body
+
+    import yaml as _yaml
+    new_yaml = _yaml.safe_load(target.read_text())
+    assert new_yaml["stop_loss_pct"] == 3.5    # 0.035 * 100
+    assert new_yaml["ema_fast"] == 12
