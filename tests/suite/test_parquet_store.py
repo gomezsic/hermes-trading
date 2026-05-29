@@ -90,3 +90,62 @@ def test_coverage_report_with_data(tmp_path: Path):
     assert 2024 in rep["years"]
     assert rep["since"] == t0
     assert rep["until"] == t0 + 47 * 3600
+
+
+from unittest.mock import patch
+
+from backtest_suite.data_lake import fetch, load, coverage
+
+
+@patch("backtest_suite.data_lake.kraken_source.fetch_ohlcv_range")
+def test_fetch_writes_parquet_and_load_reads_back(mock_fetch, tmp_path):
+    from datetime import datetime, timezone
+    t0 = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+    candles = [
+        {"t": t0 + i * 3600, "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0,
+         "v": 100.0, "n_trades": 5}
+        for i in range(10)
+    ]
+    mock_fetch.return_value = candles
+
+    n = fetch("BTCUSDT", "1h",
+              since=datetime(2024, 1, 1, tzinfo=timezone.utc),
+              until=datetime(2024, 1, 1, 9, tzinfo=timezone.utc),
+              root=tmp_path)
+    assert n == 10
+
+    out = load("BTCUSDT", "1h", root=tmp_path)
+    assert len(out) == 10
+    assert out[0]["t"] == t0
+
+
+@patch("backtest_suite.data_lake.kraken_source.fetch_ohlcv_range")
+def test_fetch_idempotent_skips_existing_ranges(mock_fetch, tmp_path):
+    from datetime import datetime, timezone
+    t0 = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+    candles = [
+        {"t": t0 + i * 3600, "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0,
+         "v": 100.0, "n_trades": 5}
+        for i in range(10)
+    ]
+    mock_fetch.return_value = candles
+
+    fetch("BTCUSDT", "1h",
+          since=datetime(2024, 1, 1, tzinfo=timezone.utc),
+          until=datetime(2024, 1, 1, 9, tzinfo=timezone.utc),
+          root=tmp_path)
+
+    # Seconda chiamata sullo stesso range con force_refresh=False
+    mock_fetch.reset_mock()
+    fetch("BTCUSDT", "1h",
+          since=datetime(2024, 1, 1, tzinfo=timezone.utc),
+          until=datetime(2024, 1, 1, 9, tzinfo=timezone.utc),
+          root=tmp_path,
+          force_refresh=False)
+    mock_fetch.assert_not_called()
+
+
+def test_coverage_returns_dict(tmp_path):
+    rep = coverage("BTCUSDT", "1h", root=tmp_path)
+    assert "n_candles" in rep
+    assert "gaps" in rep
