@@ -8,7 +8,6 @@ Vedi: docs/superpowers/specs/2026-05-27-backtest-suite-design.md §7.1.
 """
 from __future__ import annotations
 
-import math
 from statistics import mean, pstdev
 
 from hermes_trading._engine_core import RiskConfig

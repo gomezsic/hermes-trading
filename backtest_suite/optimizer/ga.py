@@ -5,13 +5,21 @@ Vedi: docs/superpowers/specs/2026-05-27-backtest-suite-design.md §7.3, §7.4.
 """
 from __future__ import annotations
 
+import multiprocessing
+import os
 import random
+import time
 from typing import Callable
 
+from backtest_suite.engine.types import ExecutionConfig
+from backtest_suite.optimizer.fitness import score_individual
 from backtest_suite.optimizer.types import (
+    EvolutionResult,
     GAConfig,
+    GenerationEvent,
     IndividualConfig,
     Scored,
+    WalkForwardConfig,
 )
 from backtest_suite.strategies import STRATEGY_REGISTRY
 
@@ -150,20 +158,6 @@ def tournament_select(scored: list[Scored], k: int,
     best = max(contenders, key=lambda s: s.fitness)
     return best.individual
 
-
-import multiprocessing
-import os
-import time
-from typing import Callable
-
-from backtest_suite.engine.types import ExecutionConfig
-from backtest_suite.optimizer.fitness import score_individual
-from backtest_suite.optimizer.types import (
-    EvolutionResult,
-    GenerationEvent,
-    Scored,
-    WalkForwardConfig,
-)
 
 # Stato globale per i worker (popolato da _init_worker via initializer del Pool)
 _W_CANDLES: list[dict] | None = None

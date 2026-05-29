@@ -10,7 +10,6 @@ import time
 from typing import Callable, Iterator
 
 from backtest_suite.engine.types import ExecutionConfig
-from backtest_suite.optimizer.fitness import score_individual
 from backtest_suite.optimizer.ga import _DEFAULT_RISK_RANGES, _evaluate_population
 from backtest_suite.optimizer.types import (
     GridConfig,
