@@ -100,9 +100,11 @@ def score_individual(
         if dd > max_dd_observed:
             max_dd_observed = dd
         if dd > wf.max_drawdown_per_window:
+            # La finestra che sfora il DD non ha uno score: riportiamo solo
+            # quelli effettivamente calcolati (niente score-fantasma 0.0).
             return FitnessResult(
                 fitness=float("-inf"),
-                per_window_scores=scores + [0.0],
+                per_window_scores=scores,
                 mean_score=0.0, stdev_score=0.0,
                 max_drawdown_observed=dd,
                 n_trades_total=n_trades_total,
