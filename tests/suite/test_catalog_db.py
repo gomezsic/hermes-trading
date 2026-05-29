@@ -101,3 +101,13 @@ def test_top_individuals_orders_by_fitness_desc(tmp_path):
     db.insert_generation(run_id, 1, [_scored("ema_cross", 2.0), _scored("ema_cross", 1.7)])
     top = db.top_individuals(run_id, k=3)
     assert [r["fitness"] for r in top] == [2.0, 1.7, 1.2]
+
+
+def test_update_run_status_rejects_unknown_field(tmp_path):
+    import pytest
+    db = CatalogDB(tmp_path / "catalog.db")
+    db.init_schema()
+    run_id = db.create_run("ga", "BTCUSDT", "1h", "runs/0001/manifest.yaml")
+    # Un campo non in whitelist non deve finire interpolato nella query SQL.
+    with pytest.raises(ValueError, match="non aggiornabili"):
+        db.update_run_status(run_id, status="finished", bogus_col=1)

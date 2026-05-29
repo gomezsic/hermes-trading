@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,14 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+# Colonne aggiornabili via update_run_status(**fields). Whitelist anti-injection:
+# i nomi colonna vengono interpolati nella query, quindi non possono essere arbitrari.
+_UPDATABLE_FIELDS: frozenset[str] = frozenset({
+    "config_path", "best_fitness", "best_individual",
+    "n_generations", "n_individuals", "notes",
+})
+
+
 class CatalogDB:
     """Wrapper minimale su sqlite3. Tutte le operazioni in WAL mode."""
 
@@ -71,13 +80,13 @@ class CatalogDB:
         return conn
 
     def init_schema(self) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             for stmt in _SCHEMA:
                 conn.execute(stmt)
 
     def create_run(self, kind: str, symbol: str, timeframe: str,
                    config_path: str) -> int:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             cur = conn.execute(
                 """INSERT INTO runs
                    (kind, status, symbol, timeframe, started_at, config_path)
@@ -87,6 +96,9 @@ class CatalogDB:
             return int(cur.lastrowid)
 
     def update_run_status(self, run_id: int, status: str, **fields: Any) -> None:
+        unknown = set(fields) - _UPDATABLE_FIELDS
+        if unknown:
+            raise ValueError(f"campi non aggiornabili: {sorted(unknown)}")
         cols = ["status = ?"]
         vals: list[Any] = [status]
         for k, v in fields.items():
@@ -96,12 +108,12 @@ class CatalogDB:
             cols.append("finished_at = ?")
             vals.append(_now_iso())
         vals.append(run_id)
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute(f"UPDATE runs SET {', '.join(cols)} WHERE id = ?", vals)
 
     def list_runs(self, status: str | None = None,
                   limit: int = 100) -> list[dict]:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             if status:
                 rows = conn.execute(
                     """SELECT * FROM runs WHERE status = ?
@@ -116,7 +128,7 @@ class CatalogDB:
             return [dict(r) for r in rows]
 
     def get_run(self, run_id: int) -> dict | None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
             return dict(row) if row else None
 
@@ -150,7 +162,7 @@ def _insert_generation(self: CatalogDB, run_id: int, generation: int,
             None,                              # sharpe non disponibile direttamente
             int(s.detail.n_trades_total),
         ))
-    with self._connect() as conn:
+    with closing(self._connect()) as conn:
         conn.executemany(
             """INSERT INTO individuals
                (run_id, generation, rank, individual_id, strategy_id, params_json,
@@ -161,7 +173,7 @@ def _insert_generation(self: CatalogDB, run_id: int, generation: int,
 
 
 def _top_individuals(self: CatalogDB, run_id: int, k: int) -> list[dict]:
-    with self._connect() as conn:
+    with closing(self._connect()) as conn:
         rows = conn.execute(
             """SELECT * FROM individuals WHERE run_id = ?
                ORDER BY fitness DESC LIMIT ?""",
