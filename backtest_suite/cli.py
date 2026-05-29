@@ -105,6 +105,30 @@ def _cmd_run(args) -> int:
     return 2
 
 
+def _cmd_ui(args) -> int:
+    import uvicorn
+    import webbrowser
+
+    from backtest_suite.server.app import create_app
+    from pathlib import Path as _P
+
+    app = create_app(
+        db_path=_P("data/backtests/catalog.db"),
+        runs_dir=_P("data/backtests/runs"),
+        data_root=_P("data/ohlcv"),
+    )
+
+    url = f"http://127.0.0.1:{args.port}"
+    if args.open:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    print(f"hermes-bt UI in ascolto su {url}")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -115,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         "run":    _cmd_run,
         "grid":   _cmd_grid,
         "evolve": _cmd_evolve,
-        "ui":     _cmd_not_yet,        # arriva in Plan D
+        "ui":     _cmd_ui,
     }
     return handlers[args.command](args)
 
