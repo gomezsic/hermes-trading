@@ -14,6 +14,9 @@ wheels/
 state/
 .railway-token
 
+# Backtest suite: data lake OHLCV + run artifacts (dati, non codice)
+data/
+
 # macOS
 .DS_Store
 **/.DS_Store
