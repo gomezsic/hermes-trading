@@ -170,3 +170,18 @@ def test_coverage_accepts_str_root(tmp_path):
     rep = coverage("BTCUSDT", "1h", root=str(tmp_path))
     assert rep["n_candles"] == 0
 
+
+def test_load_accepts_date_objects(tmp_path):
+    # pydantic parsa "2024-01-01" come datetime.date: load non deve crashare
+    # su _to_unix (era: AttributeError 'date' has no attribute 'tzinfo').
+    from datetime import date, datetime, timezone
+
+    base = tmp_path / "kraken" / "BTCUSDT" / "1d"
+    t0 = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+    write_year_file(base, 2024, [
+        {"t": t0 + i * 86400, "o": 1.0, "h": 1.0, "l": 1.0, "c": 1.0, "v": 1.0, "n_trades": 0}
+        for i in range(10)
+    ])
+    out = load("BTCUSDT", "1d", since=date(2024, 1, 1), until=date(2024, 2, 1), root=tmp_path)
+    assert len(out) == 10
+

@@ -8,7 +8,7 @@ Vedi: docs/superpowers/specs/2026-05-27-backtest-suite-design.md §9.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from backtest_suite.data_lake import kraken_source
@@ -31,10 +31,15 @@ def _symbol_dir(root: Path, symbol: str, timeframe: str) -> Path:
     return Path(root) / EXCHANGE / symbol / timeframe
 
 
-def _to_unix(dt: datetime) -> int:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return int(dt.timestamp())
+def _to_unix(dt: date | datetime) -> int:
+    # Accetta sia datetime (con/senza tz) sia date puro. pydantic parsa
+    # "2024-01-01" come date: va trattato come mezzanotte UTC.
+    # NB: datetime è sottoclasse di date, quindi controlliamo datetime per primo.
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    return int(datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc).timestamp())
 
 
 def fetch(
