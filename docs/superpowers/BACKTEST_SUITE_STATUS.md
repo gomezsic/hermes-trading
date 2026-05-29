@@ -14,8 +14,8 @@ Costruire una backtest suite generica + ottimizzatore genetico accanto al sistem
 |---|---|---|
 | **A — Foundation** | Engine generico + interfaccia `Strategy` + `EmaCrossStrategy` + regression gate bit-perfect | ✅ **COMPLETO** |
 | **B — Data + Optimizer** | Data lake parquet (Kraken/ccxt) + RSI/Bollinger + **fitness OOS + GA + grid search** | ✅ **COMPLETO (10/10)** |
-| **C — Persistence + CLI** | SQLite (metadati) + parquet (artefatti) + CLI `hermes-bt` | ⏳ **PROSSIMO (0/6 task)** |
-| **D — Server + UI** | FastAPI + WebSocket + frontend + E2E | 📄 scritto, non iniziato |
+| **C — Persistence + CLI** | SQLite (metadati) + parquet (artefatti) + CLI `hermes-bt` | ✅ **COMPLETO (6/6)** |
+| **D — Server + UI** | FastAPI + WebSocket + frontend + E2E | ⏳ **PROSSIMO** |
 
 Spec di design: `docs/superpowers/specs/2026-05-27-backtest-suite-design.md`
 
@@ -64,17 +64,32 @@ Suite dopo polish: **68 test + 17 legacy = verdi**.
 
 ---
 
-## Plan C — PROSSIMO ⏳ (0/6 task)
+## Plan C — COMPLETO ✅ (6/6 task, 2026-05-29)
 
-File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-C-persistence-cli.md`. Aggiunge persistenza SQLite (metadati) + parquet (artefatti) + CLI `hermes-bt`.
+File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-C-persistence-cli.md`. Eseguito con subagent-driven-development. Commit su `dev` da `d6a9b2e` a `04805c8`.
+
+**Cosa è stato costruito:**
+- `backtest_suite/persistence/` — `catalog_db.py` (SQLite WAL: tabelle `runs`+`individuals`, create_run/update_run_status/list_runs/get_run/insert_generation/top_individuals), `artifact_store.py` (parquet equity+trades + manifest YAML, layout `<runs_dir>/<NNNN>/`).
+- `backtest_suite/config.py` — modelli pydantic v2 (`RunConfig` + sub-spec) + `load_run_config` YAML, validator kind↔sezioni.
+- `backtest_suite/cli.py` — CLI argparse `hermes-bt` (fetch/run/grid/evolve/ui), entry point in `[project.scripts]`.
+- `backtest_suite/orchestrator.py` — `RunOrchestrator` (glue config+optimizer+persistence): `evolve()` e `grid()` con manifest riproducibilità (git_commit, python, config) e persistenza top-K.
+
+**Verifica:** 85 test suite + 17 legacy verdi. Confine architetturale intatto, nessun import circolare. Path `grid()` verificato anche con smoke E2E (8 combo → DB + 8 equity/trades parquet + manifest). Riconciliata una contraddizione interna al plan (test `len(top)==4` vs persistenza best-per-generazione → corretto a `==2`).
+
+**Follow-up non-bloccanti (per Plan D / hardening):**
+- `evolve()` persiste solo il best per generazione (non l'intera popolazione) — limite dichiarato dal plan; per la popolazione completa serve arricchire il callback di `evolve()` (utile quando Plan D streamma via WebSocket).
+- `_save_top_artifacts` usa `_individual_id(0, rank)` (generation hardcoded a 0): rivedere se Plan D deve correlare artefatti↔generazione.
+- `_cmd_run` è un placeholder (rimanda a `grid` con max_combos=1); manca flag `--db-path`/`--runs-dir` (path hardcoded `data/backtests/`).
+- Console script `hermes-bt` non registrato nel PATH (manca `build-system` nel pyproject); invocabile via `uv run python -m backtest_suite.cli`. Aggiungere build-system se si vuole l'entry point installato.
+- `CatalogDB`: whitelist colonne in `update_run_status` (anti-injection, campi interni) + connection non chiusa esplicitamente (fd accumulano sotto loop intensi).
+
+## Plan D — PROSSIMO ⏳
+
+File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-D-server-ui.md`. Server FastAPI + WebSocket + frontend + test E2E.
 
 **Comando per ripartire:**
 ```
 cd ~/hermes-trading/worker
-uv run pytest tests/suite -q   # baseline: deve dare 65 passed
-# eseguire Plan C task-by-task via subagent-driven-development
+uv run pytest tests/suite -q   # baseline: deve dare 85 passed
+# eseguire Plan D task-by-task via subagent-driven-development
 ```
-
-## Plan D
-
-Già scritto (`...-plan-D-server-ui.md`), da eseguire dopo Plan C. Aggiunge server FastAPI + WebSocket + UI + test E2E.
