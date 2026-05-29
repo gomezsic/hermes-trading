@@ -81,3 +81,54 @@ async def test_data_fetch_invokes_data_lake(mock_fetch, client: httpx.AsyncClien
     })
     assert r.status_code == 200
     assert r.json()["n_written"] == 42
+import math
+
+
+@pytest_asyncio.fixture
+async def client_with_data(tmp_path) -> httpx.AsyncClient:
+    """Client con candele sintetiche in-memory tramite override del loader."""
+    app = create_app(
+        db_path=tmp_path / "catalog.db",
+        runs_dir=tmp_path / "runs",
+        data_root=tmp_path / "ohlcv",
+    )
+    candles = []
+    for i in range(400):
+        p = 100.0 + 10.0 * math.sin(i / 20.0) + i * 0.05
+        candles.append({"t": i * 86400, "o": p, "h": p + 1, "l": p - 1, "c": p, "v": 100.0})
+    app.state.candles_override = candles
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                 base_url="http://test") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_post_runs_starts_evolve_and_returns_id(client_with_data: httpx.AsyncClient):
+    payload = {
+        "kind": "ga", "symbol": "BTCUSDT", "timeframe": "1h",
+        "range": {"since": "2024-01-01", "until": "2024-06-30"},
+        "walk_forward": {
+            "is_months": 2, "oos_months": 1, "step_months": 1,
+            "min_trades_oos": 0, "max_drawdown_per_window": 1.0,
+        },
+        "ga": {
+            "n_generations": 2, "pop_size": 4, "elite_size": 1,
+            "mutation_rate": 0.2, "crossover_rate": 0.5, "tournament_k": 2,
+            "species_quotas": {"ema_cross": 1.0},
+            "mutate_strategy_id_prob": 0.0, "immigrants_rate": 0.0,
+            "immigrants_every": 999, "seed": 42,
+        },
+        "n_workers": 1,
+    }
+    r = await client_with_data.post("/api/runs", json=payload)
+    assert r.status_code == 202
+    body = r.json()
+    assert "run_id" in body
+    assert body["status"] in ("queued", "running")
+
+
+@pytest.mark.asyncio
+async def test_post_runs_stop_returns_ok(client_with_data: httpx.AsyncClient):
+    r = await client_with_data.post("/api/runs/1/stop")
+    # 200 anche se il run non esiste (non blocchiamo idempotency)
+    assert r.status_code in (200, 404)

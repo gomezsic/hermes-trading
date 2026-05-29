@@ -106,6 +106,19 @@ class RunOrchestrator:
         self.store    = ArtifactStore(runs_dir)
         self.db.init_schema()
 
+    # Public builders (per uso da server)
+    def _build_exec(self) -> ExecutionConfig:
+        return _build_execution(self.config)
+
+    def _build_wf_cfg(self) -> WalkForwardConfig:
+        return _build_wf(self.config)
+
+    def _build_ga_cfg(self) -> GAConfig:
+        return _build_ga_config(self.config)
+
+    def _build_grid_cfg(self) -> GridConfig:
+        return _build_grid_config(self.config)
+
     # ---------- helpers comuni ----------
     def _create_run_row(self, kind: str) -> int:
         run_id = self.db.create_run(
