@@ -165,3 +165,32 @@ async def test_promote_writes_to_strategy_yaml(client: httpx.AsyncClient, tmp_pa
     new_yaml = _yaml.safe_load(target.read_text())
     assert new_yaml["stop_loss_pct"] == 3.5    # 0.035 * 100
     assert new_yaml["ema_fast"] == 12
+
+
+@pytest.mark.asyncio
+async def test_post_runs_sets_config_path_and_saves_manifest(client_with_data: httpx.AsyncClient):
+    payload = {
+        "kind": "ga", "symbol": "BTCUSDT", "timeframe": "1h",
+        "range": {"since": "2024-01-01", "until": "2024-06-30"},
+        "walk_forward": {"is_months": 2, "oos_months": 1, "step_months": 1,
+                         "min_trades_oos": 0, "max_drawdown_per_window": 1.0},
+        "ga": {"n_generations": 1, "pop_size": 2, "elite_size": 1,
+               "mutation_rate": 0.2, "crossover_rate": 0.5, "tournament_k": 2,
+               "species_quotas": {"ema_cross": 1.0},
+               "mutate_strategy_id_prob": 0.0, "immigrants_rate": 0.0,
+               "immigrants_every": 999, "seed": 42},
+        "n_workers": 1,
+    }
+    r = await client_with_data.post("/api/runs", json=payload)
+    assert r.status_code == 202
+    run_id = r.json()["run_id"]
+
+    db = client_with_data._transport.app.state.db  # type: ignore[attr-defined]
+    run = db.get_run(run_id)
+    # config_path usa il run_id reale, non il placeholder 0
+    assert run["config_path"] == f"runs/{run_id:04d}/manifest.yaml"
+
+    # manifest salvato su disco (riproducibilità: git_commit + config)
+    store = client_with_data._transport.app.state.store  # type: ignore[attr-defined]
+    manifest_path = store.runs_dir / f"{run_id:04d}" / "manifest.yaml"
+    assert manifest_path.exists()

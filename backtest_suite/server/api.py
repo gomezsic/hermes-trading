@@ -61,7 +61,6 @@ def build_router() -> APIRouter:
         from backtest_suite import data_lake
         from backtest_suite.config import RunConfig
         from backtest_suite.orchestrator import RunOrchestrator
-        from backtest_suite.optimizer.types import GenerationEvent
 
         cfg = RunConfig.model_validate(payload)
 
@@ -77,9 +76,9 @@ def build_router() -> APIRouter:
             runs_dir=request.app.state.store.runs_dir,
         )
         db = request.app.state.db
-        run_id = db.create_run(kind=cfg.kind, symbol=cfg.symbol,
-                               timeframe=cfg.timeframe,
-                               config_path=f"runs/{{run_id}}/manifest.yaml".format(run_id=0))
+        # Crea il run via orchestrator: salva il manifest (git_commit/config) e
+        # imposta config_path con il run_id reale (no placeholder).
+        run_id = orch._create_run_row(cfg.kind)
 
         registry = request.app.state.registry
         broker   = request.app.state.broker
