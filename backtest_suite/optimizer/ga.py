@@ -222,6 +222,9 @@ def evolve(
     """
     Evolve loop. n_workers=0 → auto (cpu_count-2); n_workers=1 → serial deterministico.
     """
+    if config.n_generations < 1:
+        raise ValueError("n_generations deve essere >= 1")
+
     if n_workers == 0:
         n_workers = max(1, (os.cpu_count() or 2) - 2)
 

@@ -163,3 +163,23 @@ def test_evolve_respects_stop_flag():
                     n_workers=1)
     assert result.status == "stopped"
     assert result.n_generations_completed <= 2
+
+
+def test_evolve_rejects_zero_generations():
+    import pytest
+    candles = [{"t": i * 86400, "o": 100, "h": 100, "l": 100, "c": 100, "v": 0}
+               for i in range(50)]
+    cfg = GAConfig(
+        n_generations=0, pop_size=4, elite_size=1,
+        mutation_rate=0.1, crossover_rate=0.5, tournament_k=2,
+        species_quotas={"ema_cross": 1.0},
+        mutate_strategy_id_prob=0.0, immigrants_rate=0.0, immigrants_every=999,
+        seed=1,
+    )
+    wf = WalkForwardConfig(is_months=1, oos_months=1, step_months=1,
+                           min_trades_oos=0, max_drawdown_per_window=1.0)
+    with pytest.raises(ValueError, match="n_generations"):
+        evolve(cfg, candles, wf, ExecutionConfig(),
+               stop_flag=lambda: False,
+               progress_callback=lambda _: None,
+               n_workers=1)
