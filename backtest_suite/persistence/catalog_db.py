@@ -119,3 +119,56 @@ class CatalogDB:
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
             return dict(row) if row else None
+
+
+def _individual_id(generation: int, rank: int) -> str:
+    return f"G{generation:03d}-{rank:03d}"
+
+
+class _CatalogDBExtensions:
+    """Solo per organizzazione — i metodi sotto sono aggiunti alla classe CatalogDB."""
+
+
+def _insert_generation(self: CatalogDB, run_id: int, generation: int,
+                       scored: list) -> None:
+    rows = []
+    for rank, s in enumerate(sorted(scored, key=lambda x: x.fitness, reverse=True), start=1):
+        params_payload = json.dumps({
+            "strategy_id":     s.individual.strategy_id,
+            "strategy_params": s.individual.strategy_params,
+            "risk_params":     s.individual.risk_params,
+        }, sort_keys=True)
+        rows.append((
+            run_id, generation, rank,
+            _individual_id(generation, rank),
+            s.individual.strategy_id,
+            params_payload,
+            float(s.fitness),
+            float(s.detail.mean_score),
+            float(s.detail.stdev_score),
+            float(s.detail.max_drawdown_observed),
+            None,                              # sharpe non disponibile direttamente
+            int(s.detail.n_trades_total),
+        ))
+    with self._connect() as conn:
+        conn.executemany(
+            """INSERT INTO individuals
+               (run_id, generation, rank, individual_id, strategy_id, params_json,
+                fitness, mean_oos_score, stdev_oos_score, max_drawdown, sharpe, n_trades)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+
+
+def _top_individuals(self: CatalogDB, run_id: int, k: int) -> list[dict]:
+    with self._connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM individuals WHERE run_id = ?
+               ORDER BY fitness DESC LIMIT ?""",
+            (run_id, k),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+CatalogDB.insert_generation = _insert_generation     # type: ignore[attr-defined]
+CatalogDB.top_individuals   = _top_individuals       # type: ignore[attr-defined]
