@@ -149,3 +149,17 @@ def test_coverage_returns_dict(tmp_path):
     rep = coverage("BTCUSDT", "1h", root=tmp_path)
     assert "n_candles" in rep
     assert "gaps" in rep
+
+
+def test_read_range_ignores_non_year_parquet(tmp_path: Path):
+    # Un file .parquet con nome non-anno non deve far crashare read_range.
+    base_dir = tmp_path / "BTCUSDT" / "1h"
+    base_dir.mkdir(parents=True)
+    t0 = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
+    write_year_file(base_dir, year=2024, candles=[_candle(t0 + i * 3600)
+                                                  for i in range(5)])
+    # File estraneo con stem non intero
+    (base_dir / "scratch.parquet").write_bytes(b"")
+
+    out = read_range(base_dir, since=None, until=None)
+    assert len(out) == 5   # solo le candele valide del 2024, il file estraneo è ignorato

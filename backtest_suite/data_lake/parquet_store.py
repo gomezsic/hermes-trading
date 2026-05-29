@@ -8,6 +8,7 @@ Vedi: docs/superpowers/specs/2026-05-27-backtest-suite-design.md §9.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -84,7 +85,11 @@ def write_year_file(base_dir: Path, year: int, candles: list[dict]) -> Path:
 
     sorted_rows = [rows[t] for t in sorted(rows.keys())]
     table = pa.Table.from_pylist(sorted_rows, schema=OHLCV_SCHEMA)
-    pq.write_table(table, path, compression="snappy")
+    # Scrittura atomica: scrivi su file temporaneo nella stessa dir, poi rename.
+    # os.replace è atomico sullo stesso filesystem → niente file parziali su crash.
+    tmp_path = path.with_name(path.name + ".tmp")
+    pq.write_table(table, tmp_path, compression="snappy")
+    os.replace(tmp_path, path)
     return path
 
 
@@ -106,7 +111,12 @@ def read_range(
     out: list[dict] = []
     files = sorted(base_dir.glob("*.parquet"))
     for f in files:
-        year = int(f.stem)
+        # Ignora file parquet con nome non-anno (es. residui o file estranei):
+        # il layout prevede esattamente <YYYY>.parquet.
+        try:
+            year = int(f.stem)
+        except ValueError:
+            continue
         if year_filter is not None and year not in year_filter:
             continue
         table = pq.read_table(f, schema=OHLCV_SCHEMA)
