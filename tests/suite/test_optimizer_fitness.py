@@ -116,3 +116,29 @@ def test_score_individual_fails_filter_when_dd_too_high():
     res = score_individual(ind, candles, wf, ExecutionConfig())
     # Niente trade su flat → min_trades_oos non raggiunto
     assert res.failed
+
+
+def test_trade_penalty_lowers_fitness():
+    import math
+    candles = []
+    for i in range(400):
+        p = 100.0 + 10.0 * math.sin(i / 20.0) + i * 0.05
+        candles.append({"t": i * 86400, "o": p, "h": p + 1, "l": p - 1, "c": p, "v": 100.0})
+    ind = IndividualConfig(
+        strategy_id="ema_cross",
+        strategy_params={"ema_fast": 5, "ema_slow": 20, "vwap_window": 50,
+                         "vwap_filter": 0, "direction": 2},
+        risk_params={"stop_loss_pct": 0.05, "partial_exit_pct": 0.10,
+                     "trailing_activate_pct": 0.06, "trailing_stop_pct": 0.04,
+                     "trailing_stop_tight_pct": 0.025},
+    )
+    wf0 = WalkForwardConfig(is_months=2, oos_months=1, step_months=1,
+                            min_trades_oos=1, max_drawdown_per_window=1.0, trade_penalty=0.0)
+    wf1 = WalkForwardConfig(is_months=2, oos_months=1, step_months=1,
+                            min_trades_oos=1, max_drawdown_per_window=1.0, trade_penalty=0.5)
+    f0 = score_individual(ind, candles, wf0, ExecutionConfig())
+    f1 = score_individual(ind, candles, wf1, ExecutionConfig())
+    assert not f0.failed and not f1.failed
+    assert f1.n_trades_total >= 1
+    # la penalità anti over-trading abbassa la fitness
+    assert f1.fitness < f0.fitness

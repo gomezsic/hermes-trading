@@ -65,6 +65,7 @@ def _build_wf(cfg: RunConfig) -> WalkForwardConfig:
         min_trades_oos=w.min_trades_oos,
         max_drawdown_per_window=w.max_drawdown_per_window,
         variance_lambda=cfg.fitness.variance_lambda,
+        trade_penalty=w.trade_penalty,
     )
 
 

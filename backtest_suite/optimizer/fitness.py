@@ -127,7 +127,11 @@ def score_individual(
 
     mu = mean(scores) if scores else 0.0
     sd = pstdev(scores) if len(scores) >= 2 else 0.0
-    fitness = mu - wf.variance_lambda * sd
+    # Penalità anti over-trading: trade medi per finestra × trade_penalty.
+    # Scoraggia config ad alta frequenza che vengono dissanguate dalle commissioni.
+    avg_trades_per_window = n_trades_total / len(windows) if windows else 0.0
+    trade_pen = wf.trade_penalty * avg_trades_per_window
+    fitness = mu - wf.variance_lambda * sd - trade_pen
     return FitnessResult(
         fitness=fitness,
         per_window_scores=[round(s, 6) for s in scores],

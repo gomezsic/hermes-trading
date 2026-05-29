@@ -24,6 +24,7 @@ class WalkForwardSpec(BaseModel):
     step_months:              int = Field(..., gt=0)
     min_trades_oos:           int = Field(..., ge=0)
     max_drawdown_per_window:  float = Field(..., gt=0, le=1.0)
+    trade_penalty:            float = Field(default=0.0, ge=0)
 
 
 class EvolveSpec(BaseModel):

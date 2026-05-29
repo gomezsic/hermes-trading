@@ -24,6 +24,9 @@ class WalkForwardConfig:
     min_trades_oos:           int
     max_drawdown_per_window:  float
     variance_lambda:          float = 0.5
+    # Penalità anti over-trading: sottrae trade_penalty * (trade medi per finestra)
+    # alla fitness. Scoraggia config che fanno troppi trade (drenati dalle commissioni).
+    trade_penalty:            float = 0.0
 
 
 @dataclass
