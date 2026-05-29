@@ -15,7 +15,9 @@ Costruire una backtest suite generica + ottimizzatore genetico accanto al sistem
 | **A — Foundation** | Engine generico + interfaccia `Strategy` + `EmaCrossStrategy` + regression gate bit-perfect | ✅ **COMPLETO** |
 | **B — Data + Optimizer** | Data lake parquet (Kraken/ccxt) + RSI/Bollinger + **fitness OOS + GA + grid search** | ✅ **COMPLETO (10/10)** |
 | **C — Persistence + CLI** | SQLite (metadati) + parquet (artefatti) + CLI `hermes-bt` | ✅ **COMPLETO (6/6)** |
-| **D — Server + UI** | FastAPI + WebSocket + frontend + E2E | ⏳ **PROSSIMO** |
+| **D — Server + UI** | FastAPI + WebSocket + frontend + E2E | ✅ **COMPLETO (9/9)** |
+
+**🎉 Tutti e 4 i plan completati il 2026-05-29.** Suite: **99 test + 1 skip + 17 legacy** verdi.
 
 Spec di design: `docs/superpowers/specs/2026-05-27-backtest-suite-design.md`
 
@@ -89,13 +91,29 @@ File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-C-persistence-cli.m
 **Follow-up DATI (emerso usando la suite dal vivo):**
 - L'endpoint OHLC pubblico di Kraken **ignora `since`** e restituisce solo le **ultime ~720 candele**. Su `1h` = ~30 giorni (troppo poco per walk-forward mensile); su `1d` = ~2 anni (ok). Per storia profonda intraday serve un'altra fonte o un accumulo incrementale. Da affrontare in Plan D (o task dati dedicato).
 
-## Plan D — PROSSIMO ⏳
+## Plan D — COMPLETO ✅ (9/9 task, 2026-05-29)
 
-File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-D-server-ui.md`. Server FastAPI + WebSocket + frontend + test E2E.
+File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-D-server-ui.md`. Eseguito con subagent-driven-development. Commit su `dev` da `8918096` a (fix) `…`.
 
-**Comando per ripartire:**
-```
-cd ~/hermes-trading/worker
-uv run pytest tests/suite -q   # baseline: deve dare 85 passed
-# eseguire Plan D task-by-task via subagent-driven-development
-```
+**Cosa è stato costruito:**
+- `backtest_suite/server/` — `app.py` (FastAPI factory, app.state db/store/data_root/broker/registry), `api.py` (REST: GET /runs, /runs/{id}, /strategies, /data/coverage, POST /data/fetch, POST /runs [background], /runs/{id}/stop, promote), `ws.py` (EventBroker + WebSocket /ws/runs/{id} con replay), `runs_registry.py`, `static/` (HTML/CSS/JS vanilla + Chart.js).
+- `backtest_suite/cli.py` — `_cmd_ui` avvia uvicorn (verificato live: healthcheck risponde).
+- Run GA/grid lanciati in background via `asyncio.to_thread`; eventi pubblicati al broker → WebSocket; persistenza su DB durante il run.
+
+**Verifica:** 99 test suite + 1 skip + 17 legacy verdi. E2E (`test_e2e_evolve.py`): POST run → poll → finished → promote → strategy.yaml, in ~2s. Confine architetturale intatto.
+
+**Deviazioni/fix degni di nota:**
+- I test server usano `httpx.AsyncClient` (non sync `Client`): in httpx 0.28 `ASGITransport` è async-only. Stesso motivo per cui l'e2e usa `asyncio.sleep` per il polling (fa progredire il task background sullo stesso loop).
+- Fix post-review: `POST /runs` ora usa `orch._create_run_row` → `config_path` col run_id reale + manifest salvato anche per run da server (prima era hardcoded `runs/0/...`).
+
+**Follow-up non implementati (post-MVP, dichiarati dal plan):**
+- Pagina "Individual detail" con drill-down equity/trades del singolo individuo (serve endpoint `GET /runs/{id}/individuals/{ind_id}` + vista frontend).
+- "Re-run on holdout" (§8.2): richiede split candles_usable/holdout nel data lake.
+- `evolve()` via server persiste solo best-per-generazione (eredita il limite di Plan C).
+
+## 🏁 Suite completa
+
+Tutti e 4 i plan eseguiti. La backtest suite è usabile end-to-end:
+- **Da script/CLI:** `data_lake.fetch` → `RunOrchestrator.grid()/evolve()` → leaderboard su SQLite + artefatti parquet.
+- **Da browser:** `uv run python -m backtest_suite.cli ui` → http://127.0.0.1:8765 (Runs/Data/Strategies/Settings, live chart via WebSocket, promote verso `state/strategy.yaml`).
+- Nota: console script `hermes-bt` non installato (manca `[build-system]`); usare `python -m backtest_suite.cli`.
