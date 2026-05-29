@@ -58,3 +58,26 @@ async def test_run_detail_returns_run_plus_top(client: httpx.AsyncClient):
     body = r.json()
     assert body["run"]["id"] == run_id
     assert body["top"] == []     # niente individuals seedato
+
+
+from unittest.mock import patch
+
+
+@pytest.mark.asyncio
+async def test_data_coverage_empty(client: httpx.AsyncClient):
+    r = await client.get("/api/data/coverage", params={"symbol": "BTCUSDT", "timeframe": "1h"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["n_candles"] == 0
+
+
+@pytest.mark.asyncio
+@patch("backtest_suite.data_lake.fetch")
+async def test_data_fetch_invokes_data_lake(mock_fetch, client: httpx.AsyncClient):
+    mock_fetch.return_value = 42
+    r = await client.post("/api/data/fetch", json={
+        "symbol": "BTCUSDT", "timeframe": "1h",
+        "since": "2024-01-01T00:00:00", "until": "2024-01-02T00:00:00",
+    })
+    assert r.status_code == 200
+    assert r.json()["n_written"] == 42

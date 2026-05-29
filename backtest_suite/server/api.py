@@ -38,4 +38,20 @@ def build_router() -> APIRouter:
             })
         return out
 
+    @router.get("/data/coverage")
+    async def data_coverage(request: Request, symbol: str, timeframe: str):
+        from backtest_suite import data_lake
+        return data_lake.coverage(symbol, timeframe, root=request.app.state.data_root)
+
+    @router.post("/data/fetch")
+    async def data_fetch(request: Request, payload: dict):
+        from datetime import datetime, timezone
+        from backtest_suite import data_lake
+        since = datetime.fromisoformat(payload["since"]).replace(tzinfo=timezone.utc)
+        until = datetime.fromisoformat(payload["until"]).replace(tzinfo=timezone.utc)
+        n = data_lake.fetch(payload["symbol"], payload["timeframe"], since, until,
+                            force_refresh=payload.get("force_refresh", False),
+                            root=request.app.state.data_root)
+        return {"n_written": n}
+
     return router
