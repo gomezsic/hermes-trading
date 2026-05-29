@@ -149,3 +149,160 @@ def tournament_select(scored: list[Scored], k: int,
     contenders = rng.sample(scored, k_eff)
     best = max(contenders, key=lambda s: s.fitness)
     return best.individual
+
+
+import multiprocessing
+import os
+import time
+from typing import Callable
+
+from backtest_suite.engine.types import ExecutionConfig
+from backtest_suite.optimizer.fitness import score_individual
+from backtest_suite.optimizer.types import (
+    EvolutionResult,
+    GenerationEvent,
+    Scored,
+    WalkForwardConfig,
+)
+
+# Stato globale per i worker (popolato da _init_worker via initializer del Pool)
+_W_CANDLES: list[dict] | None = None
+_W_WF: WalkForwardConfig | None = None
+_W_EXEC: ExecutionConfig | None = None
+
+
+def _init_worker(candles, wf, execution):
+    global _W_CANDLES, _W_WF, _W_EXEC
+    _W_CANDLES = candles
+    _W_WF      = wf
+    _W_EXEC    = execution
+
+
+def _evaluate_one(individual: IndividualConfig) -> Scored:
+    assert _W_CANDLES is not None and _W_WF is not None and _W_EXEC is not None
+    detail = score_individual(individual, _W_CANDLES, _W_WF, _W_EXEC)
+    return Scored(individual=individual, fitness=detail.fitness, detail=detail)
+
+
+def _evaluate_serial(individual: IndividualConfig,
+                     candles: list[dict],
+                     wf: WalkForwardConfig,
+                     execution: ExecutionConfig) -> Scored:
+    detail = score_individual(individual, candles, wf, execution)
+    return Scored(individual=individual, fitness=detail.fitness, detail=detail)
+
+
+def _evaluate_population(
+    pop: list[IndividualConfig],
+    candles: list[dict],
+    wf: WalkForwardConfig,
+    execution: ExecutionConfig,
+    n_workers: int,
+) -> list[Scored]:
+    if n_workers <= 1:
+        return [_evaluate_serial(ind, candles, wf, execution) for ind in pop]
+    ctx = multiprocessing.get_context("spawn")
+    with ctx.Pool(processes=n_workers,
+                  initializer=_init_worker,
+                  initargs=(candles, wf, execution)) as pool:
+        scored = pool.map(_evaluate_one, pop)
+    return scored
+
+
+def _species_counts(pop: list[IndividualConfig]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for ind in pop:
+        counts[ind.strategy_id] = counts.get(ind.strategy_id, 0) + 1
+    return counts
+
+
+def evolve(
+    config:    GAConfig,
+    candles:   list[dict],
+    wf:        WalkForwardConfig,
+    execution: ExecutionConfig,
+    stop_flag: Callable[[], bool],
+    progress_callback: Callable[[GenerationEvent], None],
+    n_workers: int = 0,
+) -> EvolutionResult:
+    """
+    Evolve loop. n_workers=0 → auto (cpu_count-2); n_workers=1 → serial deterministico.
+    """
+    if n_workers == 0:
+        n_workers = max(1, (os.cpu_count() or 2) - 2)
+
+    rng = random.Random(config.seed)
+    pop = init_population(config, rng)
+
+    history: list[GenerationEvent] = []
+    best_overall: Scored | None    = None
+    t_start = time.time()
+    status  = "finished"
+    n_done  = 0
+
+    for gen in range(config.n_generations):
+        scored = _evaluate_population(pop, candles, wf, execution, n_workers)
+        scored.sort(key=lambda s: s.fitness, reverse=True)
+
+        if best_overall is None or scored[0].fitness > best_overall.fitness:
+            best_overall = scored[0]
+
+        valid_fitness = [s.fitness for s in scored if s.fitness != float("-inf")]
+        mean_fit = sum(valid_fitness) / len(valid_fitness) if valid_fitness else float("-inf")
+
+        event = GenerationEvent(
+            generation=gen,
+            pop_size=len(pop),
+            best_fitness=scored[0].fitness,
+            mean_fitness=mean_fit,
+            best_individual=scored[0].individual,
+            species_counts=_species_counts(pop),
+            elapsed_sec=round(time.time() - t_start, 3),
+        )
+        progress_callback(event)
+        history.append(event)
+        n_done = gen + 1
+
+        if stop_flag():
+            status = "stopped"
+            break
+
+        # Costruisci la prossima generazione
+        elites = [s.individual for s in scored[: config.elite_size]]
+        next_pop: list[IndividualConfig] = list(elites)
+
+        # Immigrants (random fresh) ogni N generazioni
+        n_immigrants = 0
+        if config.immigrants_every > 0 and (gen + 1) % config.immigrants_every == 0:
+            n_immigrants = max(0, int(config.pop_size * config.immigrants_rate))
+            for _ in range(n_immigrants):
+                sid = rng.choices(
+                    list(config.species_quotas.keys()),
+                    weights=list(config.species_quotas.values()),
+                )[0]
+                next_pop.append(_random_individual(sid, rng))
+
+        while len(next_pop) < config.pop_size:
+            p1 = tournament_select(scored, config.tournament_k, rng)
+            p2 = tournament_select(scored, config.tournament_k, rng)
+            if rng.random() < config.crossover_rate:
+                c1, c2 = crossover(p1, p2, rng)
+            else:
+                c1, c2 = p1, p2
+            c1 = mutate(c1, config.mutation_rate, rng, config.mutate_strategy_id_prob)
+            next_pop.append(c1)
+            if len(next_pop) < config.pop_size:
+                c2 = mutate(c2, config.mutation_rate, rng, config.mutate_strategy_id_prob)
+                next_pop.append(c2)
+
+        pop = next_pop[: config.pop_size]
+
+    assert best_overall is not None
+    return EvolutionResult(
+        best_individual=best_overall.individual,
+        best_fitness=best_overall.fitness,
+        n_generations_completed=n_done,
+        history=history,
+        elapsed_sec=round(time.time() - t_start, 3),
+        status=status,
+    )
