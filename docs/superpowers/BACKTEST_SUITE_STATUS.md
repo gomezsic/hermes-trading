@@ -76,12 +76,18 @@ File: `docs/superpowers/plans/2026-05-27-backtest-suite-plan-C-persistence-cli.m
 
 **Verifica:** 85 test suite + 17 legacy verdi. Confine architetturale intatto, nessun import circolare. Path `grid()` verificato anche con smoke E2E (8 combo → DB + 8 equity/trades parquet + manifest). Riconciliata una contraddizione interna al plan (test `len(top)==4` vs persistenza best-per-generazione → corretto a `==2`).
 
-**Follow-up non-bloccanti (per Plan D / hardening):**
+**Polish Plan C (2026-05-29, commit `…`) — RISOLTI ✅:**
+- `data_lake` fetch/load/coverage ora accettano `root` come `str` (coercito a `Path`) — fix del `TypeError` emerso usando la CLI dal vivo (+ test). ✅
+- `CatalogDB.update_run_status`: whitelist `_UPDATABLE_FIELDS` (rifiuta nomi colonna arbitrari con `ValueError`) + tutte le connessioni in `contextlib.closing()` (chiusura fd) (+ test). ✅
+
+**Follow-up NON applicati (architetturali / rischio deploy — rimandati):**
 - `evolve()` persiste solo il best per generazione (non l'intera popolazione) — limite dichiarato dal plan; per la popolazione completa serve arricchire il callback di `evolve()` (utile quando Plan D streamma via WebSocket).
 - `_save_top_artifacts` usa `_individual_id(0, rank)` (generation hardcoded a 0): rivedere se Plan D deve correlare artefatti↔generazione.
-- `_cmd_run` è un placeholder (rimanda a `grid` con max_combos=1); manca flag `--db-path`/`--runs-dir` (path hardcoded `data/backtests/`).
-- Console script `hermes-bt` non registrato nel PATH (manca `build-system` nel pyproject); invocabile via `uv run python -m backtest_suite.cli`. Aggiungere build-system se si vuole l'entry point installato.
-- `CatalogDB`: whitelist colonne in `update_run_status` (anti-injection, campi interni) + connection non chiusa esplicitamente (fd accumulano sotto loop intensi).
+- `_cmd_run` è un placeholder; manca flag `--db-path`/`--runs-dir` (path hardcoded `data/backtests/`). Da definire con la UX della CLI in Plan D.
+- Console script `hermes-bt` non registrato (manca `[build-system]` nel pyproject); invocabile via `uv run python -m backtest_suite.cli`. NON aggiunto un build-system per non alterare il build Docker del bot live su Railway.
+
+**Follow-up DATI (emerso usando la suite dal vivo):**
+- L'endpoint OHLC pubblico di Kraken **ignora `since`** e restituisce solo le **ultime ~720 candele**. Su `1h` = ~30 giorni (troppo poco per walk-forward mensile); su `1d` = ~2 anni (ok). Per storia profonda intraday serve un'altra fonte o un accumulo incrementale. Da affrontare in Plan D (o task dati dedicato).
 
 ## Plan D — PROSSIMO ⏳
 
