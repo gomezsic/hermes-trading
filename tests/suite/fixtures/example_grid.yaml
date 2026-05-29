@@ -1,0 +1,33 @@
+kind: grid
+symbol: BTCUSDT
+timeframe: 1h
+range:
+  since: "2024-01-01"
+  until: "2024-06-30"
+walk_forward:
+  is_months: 3
+  oos_months: 1
+  step_months: 1
+  min_trades_oos: 10
+  max_drawdown_per_window: 0.30
+grid:
+  strategy_ids: ["ema_cross"]
+  max_combos: 100
+  strategy_params_grid:
+    ema_cross:
+      ema_fast: [5, 10]
+      ema_slow: [20, 30]
+      vwap_window: [100]
+      vwap_filter: [0]
+      direction: [2]
+  risk_params_grid:
+    stop_loss_pct: [0.03, 0.05]
+    partial_exit_pct: [0.09]
+    trailing_activate_pct: [0.06]
+    trailing_stop_pct: [0.04]
+    trailing_stop_tight_pct: [0.025]
+execution:
+  capital: 10000.0
+persistence:
+  save_top_k: 10
+n_workers: 1

@@ -1,0 +1,36 @@
+kind: ga
+symbol: BTCUSDT
+timeframe: 1h
+range:
+  since: "2024-01-01"
+  until: "2024-06-30"
+walk_forward:
+  is_months: 3
+  oos_months: 1
+  step_months: 1
+  min_trades_oos: 20
+  max_drawdown_per_window: 0.30
+ga:
+  n_generations: 10
+  pop_size: 20
+  elite_size: 2
+  mutation_rate: 0.15
+  crossover_rate: 0.7
+  tournament_k: 3
+  species_quotas:
+    ema_cross: 0.5
+    rsi_mr: 0.25
+    bb_breakout: 0.25
+  mutate_strategy_id_prob: 0.05
+  immigrants_rate: 0.05
+  immigrants_every: 5
+  seed: 42
+fitness:
+  variance_lambda: 0.5
+execution:
+  taker_fee: 0.0026
+  slippage: 0.0005
+  capital: 10000.0
+persistence:
+  save_top_k: 20
+n_workers: 2
