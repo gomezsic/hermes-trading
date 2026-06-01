@@ -2,6 +2,12 @@
 # Leggi questo prima di qualsiasi azione sul progetto.
 # Aggiornato: 2026-05-26
 
+> ⚠️ **AGGIORNAMENTO 2026-06-01** — Parti di questo file sono datate.
+> Fonte autoritativa sullo stato corrente: **`docs/2026-06-01-status-e-diagnosi.md`**.
+> In sintesi: strategia live = **v06** (non v01/v02/v03); Backtest Suite **COMPLETA** (4/4 plan);
+> il bot ha fatto **0 trade** dall'avvio (diagnosi nel doc: regime Bear blocca i long + guard restrittivi,
+> non è un bug); nuovo programma **Strategy Arena** (spec + piano F1 in `docs/superpowers/`).
+
 ---
 
 ## STATO ATTUALE: ONLINE E OPERATIVO

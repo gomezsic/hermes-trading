@@ -1,5 +1,10 @@
 # Hermes Trading — stato del progetto
 
+> ⚠️ **AGGIORNAMENTO 2026-06-01** — Alcune sezioni sono datate (citano strategia v01/RSI e Backtest Suite in corso).
+> Stato reale e autoritativo: **`docs/2026-06-01-status-e-diagnosi.md`**. In breve: strategia live **v06**,
+> Backtest Suite **completa**, **0 trade** dall'avvio (diagnosi: comportamento atteso, non un bug),
+> nuovo programma **Strategy Arena** (`docs/superpowers/specs/2026-05-31-strategy-arena-design.md`).
+
 Sistema self-improving paper-trading completo, deployato e operativo dal 2026-05-24. 8 fasi eseguite seguendo un prompt strutturato (`~/Downloads/hermes-trading-prompt-v2.md`) + Fase 8 (UI) aggiunta su richiesta.
 
 ## Componenti & topologia
