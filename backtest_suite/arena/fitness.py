@@ -13,6 +13,9 @@ import math
 from statistics import median
 
 from backtest_suite.arena.types import CandidateMetrics, Weights
+from backtest_suite.engine.types import ExecutionConfig
+from backtest_suite.optimizer.fitness import score_individual
+from backtest_suite.optimizer.types import IndividualConfig, WalkForwardConfig
 
 
 def robust_zscore(values: list[float]) -> list[float]:
@@ -59,6 +62,31 @@ def composite_scores(cms: list[CandidateMetrics], weights: Weights) -> list[floa
                    + weights.consistency * zc[i]
                    - weights.drawdown * zd[i])
     return out
+
+
+def evaluate(
+    individual: IndividualConfig,
+    candles: list[dict],
+    wf: WalkForwardConfig,
+    execution: ExecutionConfig,
+) -> CandidateMetrics:
+    """Valuta un genome (strategy + risk params) sulle finestre OOS riusando
+    `score_individual`.
+
+    Mappatura assi (spec §6): quality=mean_score, consistency=-stdev_score,
+    drawdown=max_drawdown_observed.
+    """
+    fr = score_individual(individual, candles, wf, execution)
+    return CandidateMetrics(
+        individual=individual,
+        fitness=fr.fitness,
+        quality=fr.mean_score,
+        consistency=-fr.stdev_score,
+        drawdown=fr.max_drawdown_observed,
+        n_trades=fr.n_trades_total,
+        failed=fr.failed,
+        failure_reason=fr.failure_reason,
+    )
 
 
 def validation_verdict(cm: CandidateMetrics) -> str:
