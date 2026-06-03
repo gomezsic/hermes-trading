@@ -18,7 +18,8 @@ from backtest_suite.arena.types import CandidateMetrics, Weights
 def robust_zscore(values: list[float]) -> list[float]:
     """z-score robusto (mediana / MAD). I valori non-finiti mappano a 0.0.
 
-    scale = 1.4826·MAD; se MAD == 0 si usa pstdev dei finiti, altrimenti 1.0.
+    scale = 1.4826·MAD; se MAD == 0 si usa la pstdev dei finiti; se anche quella
+    è 0 (input costante o un solo finito) si ritorna tutti zero.
     """
     finite = [v for v in values if math.isfinite(v)]
     if not finite:
