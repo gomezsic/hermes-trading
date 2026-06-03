@@ -8,8 +8,17 @@ from backtest_suite.arena.types import (
     Attempt, CandidateMetrics, Weights, ArenaConfig,
     LeaderboardRow, Leaderboard,
 )
+from backtest_suite.arena.fitness import (
+    evaluate, composite_scores, validation_verdict, robust_zscore,
+)
+from backtest_suite.arena.proposer import Proposer, RandomGAProposer
+from backtest_suite.arena.agent import Agent
+from backtest_suite.arena.tournament import run_tournament
+from backtest_suite.arena.store import ArenaStore
 
 __all__ = [
     "Attempt", "CandidateMetrics", "Weights", "ArenaConfig",
     "LeaderboardRow", "Leaderboard",
+    "evaluate", "composite_scores", "validation_verdict", "robust_zscore",
+    "Proposer", "RandomGAProposer", "Agent", "run_tournament", "ArenaStore",
 ]
