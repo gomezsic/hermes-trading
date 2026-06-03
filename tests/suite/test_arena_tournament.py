@@ -54,3 +54,16 @@ def test_tournament_is_deterministic():
     best1 = {r.agent_id: r.candidate.individual for r in lb1.rows}
     best2 = {r.agent_id: r.candidate.individual for r in lb2.rows}
     assert best1 == best2
+
+
+def test_tournament_rejects_unknown_proposer():
+    import pytest
+    cfg = ArenaConfig(
+        archetype_ids=("ema_cross",), proposer_ids=("llm",),  # non supportato in F2
+        n_generations=1, seed=1,
+        wf=WalkForwardConfig(is_months=2, oos_months=1, step_months=1,
+                             min_trades_oos=1, max_drawdown_per_window=1.0),
+        execution=ExecutionConfig(), weights=Weights(),
+    )
+    with pytest.raises(ValueError):
+        run_tournament(cfg, _sine_candles())
