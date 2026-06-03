@@ -22,14 +22,14 @@ class Attempt:
 @dataclass(frozen=True)
 class CandidateMetrics:
     """Metriche di un candidato dopo la valutazione walk-forward OOS."""
-    individual: IndividualConfig
-    fitness: float                      # FitnessResult.fitness (assoluta, cross-gen)
-    quality: float                      # = mean_score (composito OOS)
-    consistency: float                  # = -stdev_score
-    drawdown: float                     # = max_drawdown_observed
-    n_trades: int
-    failed: bool
-    failure_reason: str | None = None
+    individual:      IndividualConfig
+    fitness:         float              # FitnessResult.fitness (assoluta, cross-gen)
+    quality:         float              # = mean_score (composito OOS)
+    consistency:     float              # = -stdev_score
+    drawdown:        float              # = max_drawdown_observed
+    n_trades:        int
+    failed:          bool
+    failure_reason:  str | None = None
 
     @property
     def strategy_id(self) -> str:
@@ -47,15 +47,15 @@ class Weights:
 @dataclass(frozen=True)
 class ArenaConfig:
     """Configurazione di un torneo."""
-    archetype_ids: tuple[str, ...]
-    proposer_ids: tuple[str, ...]       # F2: solo ("ga",)
-    n_generations: int
-    seed: int
-    wf: WalkForwardConfig
-    execution: ExecutionConfig
-    weights: Weights = Weights()
-    symbol: str = "BTCUSDT"
-    timeframe: str = "1h"
+    archetype_ids:  tuple[str, ...]
+    proposer_ids:   tuple[str, ...]     # F2: solo ("ga",)
+    n_generations:  int
+    seed:           int
+    wf:             WalkForwardConfig
+    execution:      ExecutionConfig
+    weights:        Weights = field(default_factory=Weights)
+    symbol:         str = "BTCUSDT"
+    timeframe:      str = "1h"
 
 
 @dataclass(frozen=True)
@@ -70,8 +70,8 @@ class LeaderboardRow:
     candidate: CandidateMetrics
 
 
-@dataclass(frozen=True)
+@dataclass
 class Leaderboard:
     """Risultato finale di un torneo."""
-    rows: list[LeaderboardRow] = field(default_factory=list)   # ordinate per score desc
+    rows:   list[LeaderboardRow] = field(default_factory=list)  # ordinate per score desc
     run_id: int | None = None
