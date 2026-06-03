@@ -1,8 +1,10 @@
 # Backtest Suite — Stato & Handoff
 
-**Ultimo aggiornamento:** 2026-05-29
+**Ultimo aggiornamento:** 2026-06-03
 **Branch:** `dev`
 **Come ripartire domani:** leggi questo file, poi apri il prossimo plan da eseguire (vedi sotto) ed esegui task-by-task con `superpowers:subagent-driven-development`.
+
+> **Stato in breve (2026-06-03):** Backtest Suite (Plan A–D) **completa**. Programma **Strategy Arena**: **F1 + F2 completate** (vedi sezione in fondo). Prossimo: Arena **F3 (LLMProposer)**.
 
 ---
 
@@ -117,3 +119,49 @@ Tutti e 4 i plan eseguiti. La backtest suite è usabile end-to-end:
 - **Da script/CLI:** `data_lake.fetch` → `RunOrchestrator.grid()/evolve()` → leaderboard su SQLite + artefatti parquet.
 - **Da browser:** `uv run python -m backtest_suite.cli ui` → http://127.0.0.1:8765 (Runs/Data/Strategies/Settings, live chart via WebSocket, promote verso `state/strategy.yaml`).
 - Nota: console script `hermes-bt` non installato (manca `[build-system]`); usare `python -m backtest_suite.cli`.
+
+---
+
+# Strategy Arena — Stato
+
+Programma successivo alla suite: 10 archetipi che competono evolvendo i propri parametri su backtest walk-forward OOS. Proposer principale LLM (testa) + baseline GA (controllo) per misurare se l'LLM aggiunge edge reale.
+
+**Spec di design:** `docs/superpowers/specs/2026-05-31-strategy-arena-design.md`
+**Fasi:** F1 strategie → F2 core arena → F3 LLM → F4 UI.
+
+| Fase | Contenuto | Stato |
+|---|---|---|
+| **F1 — Strategie** | 7 nuove famiglie + `_indicators.py` (SMA/EMA/ATR) → registry a 10 strategie | ✅ **COMPLETA** (2026-06-03) |
+| **F2 — Core arena** | `backtest_suite/arena/` (types, fitness, proposer, agent, tournament, store), GA-only end-to-end | ✅ **COMPLETA** (2026-06-03) |
+| **F3 — LLM** | `LLMProposer` + `llm_client.py` + cache delle proposte | ⏳ **PROSSIMA** |
+| **F4 — UI** | vista Arena nel server FastAPI | non iniziata |
+
+## F1 — COMPLETA ✅ (9 task, 2026-06-03)
+
+File: `docs/superpowers/plans/2026-05-31-strategy-arena-F1-strategies.md`. Commit su `dev` da `4b74fa3` a `fab63ae`.
+
+- `backtest_suite/strategies/_indicators.py` — helper condivisi SMA/EMA/ATR (Wilder).
+- 7 nuove strategie conformi al `Strategy` Protocol: `price_vs_ma_cross`, `donchian_breakout`, `macd_signal`, `supertrend`, `momentum_roc`, `keltner_breakout`, `vwap_reversion` — ognuna con `param_specs` (bound) + test dedicato.
+- `STRATEGY_REGISTRY` ora a **10 strategie** (3 esistenti + 7 nuove), verificato da `test_registry_has_ten.py`.
+
+## F2 — COMPLETA ✅ (8 task, 2026-06-03)
+
+File: `docs/superpowers/plans/2026-06-03-strategy-arena-F2-core-arena.md`. Eseguito con `subagent-driven-development` (implementer → spec review → code-quality review per task + final review olistica con opus: **"ready to merge"**). Commit su `dev` da `94d9fc8` a `053f8b9`.
+
+**Nuovo sottopacchetto `backtest_suite/arena/`** (invariante rispettato: arena importa da backtest_suite, MAI il contrario; `catalog_db.py` NON modificato):
+- `types.py` — il genome è l'`IndividualConfig` esistente (strategy_id + strategy_params + **risk_params**: l'arena evolve sia strategia sia rischio). `CandidateMetrics`, `Weights`, `ArenaConfig`, `LeaderboardRow`, `Leaderboard`.
+- `fitness.py` — `robust_zscore` (mediana/MAD), `composite_scores` (z-score multi-obiettivo sulla popolazione della generazione), `validation_verdict` (robust/weak/likely_overfit), `evaluate()` (riusa `optimizer.fitness.score_individual`).
+- `proposer.py` — `Proposer` Protocol + `RandomGAProposer` (riusa `_random_individual`/`mutate` dell'optimizer; archetipo fisso via `mutate_strategy_id_prob=0`).
+- `agent.py` — `Agent` (archetipo + proposer + storico, best-by-fitness).
+- `tournament.py` — `run_tournament(cfg, candles, store=None)`: loop generazioni, composite sulla popolazione, leaderboard best-so-far (nessuna eliminazione; falliti → -inf, retrocessi), determinismo via RNG seedato da stringa `"{seed}:{agent_id}:{gen}"`.
+- `store.py` — `ArenaStore`: SQLite WAL con tabelle proprie `arena_runs`/`arena_individuals` (params_json = genome completo), stesso pattern di `catalog_db.py`, riusa `ArtifactStore`.
+
+**Verifica:** suite completa **170 passed, 1 skipped**.
+
+**2 deviazioni dalla spec §6 — documentate e accettate:**
+1. Composite su `mean_score` (composito OOS) e `-stdev_score`, non sui grezzi `net_profit`/`profit_factor` (che `score_individual` non espone).
+2. Verdetto da livello OOS + dispersione tra finestre; la degradazione IS→OOS e il gate DSR/PBO si agganceranno col validation layer (`spec 2026-05-29-validation-layer-design.md`).
+
+**Follow-up noti (non bloccanti):**
+- `ArenaStore` istanzia `ArtifactStore` ma non scrive ancora manifest/equity per i campioni — wiring previsto per F3/F4.
+- Concorrenza: il loop valuta in serie; il fan-out multiprocessing dell'optimizer (`ga._evaluate_population`) non è ancora agganciato all'arena (collo di bottiglia reale sarà l'LLM in F3).

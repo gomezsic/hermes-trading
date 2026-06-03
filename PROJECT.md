@@ -1,9 +1,9 @@
 # Hermes Trading — stato del progetto
 
-> ⚠️ **AGGIORNAMENTO 2026-06-01** — Alcune sezioni sono datate (citano strategia v01/RSI e Backtest Suite in corso).
-> Stato reale e autoritativo: **`docs/2026-06-01-status-e-diagnosi.md`**. In breve: strategia live **v06**,
-> Backtest Suite **completa**, **0 trade** dall'avvio (diagnosi: comportamento atteso, non un bug),
-> nuovo programma **Strategy Arena** (`docs/superpowers/specs/2026-05-31-strategy-arena-design.md`).
+> ⚠️ **AGGIORNAMENTO 2026-06-03** — Alcune sezioni sono datate (citano strategia v01/RSI e Backtest Suite in corso).
+> Stato reale e autoritativo: **`docs/2026-06-01-status-e-diagnosi.md`** (generale) + **`docs/superpowers/BACKTEST_SUITE_STATUS.md`** (suite + arena).
+> In breve: strategia live **v06**, Backtest Suite **completa**, **0 trade** dall'avvio (diagnosi: comportamento atteso, non un bug),
+> programma **Strategy Arena** con **F1 + F2 completate** (core GA-only end-to-end in `backtest_suite/arena/`); prossima F3 (LLMProposer).
 
 Sistema self-improving paper-trading completo, deployato e operativo dal 2026-05-24. 8 fasi eseguite seguendo un prompt strutturato (`~/Downloads/hermes-trading-prompt-v2.md`) + Fase 8 (UI) aggiunta su richiesta.
 
@@ -106,16 +106,17 @@ pbcopy < ~/hermes-trading/config/hermes-briefing.txt
 # Cmd+V dentro Hermes, Invio
 ```
 
-## Backtest Suite + Genetic Algorithm (in corso)
+## Backtest Suite + Genetic Algorithm (completa) + Strategy Arena
 
-Progetto parallelo per backtest generico + ottimizzatore genetico, in `backtest_suite/` (isolato dal sistema live in `hermes_trading/`). 4 plan sequenziali A→D.
+Progetto parallelo per backtest generico + ottimizzatore genetico, in `backtest_suite/` (isolato dal sistema live in `hermes_trading/`).
 
 **Stato e handoff completo:** `docs/superpowers/BACKTEST_SUITE_STATUS.md`
-- **Plan A** (engine generico + `Strategy` pluggable + `EmaCrossStrategy` + regression gate bit-perfect): **COMPLETO** ✓ — 28 test suite verdi, regression gate verde.
-- **Plan B** (data lake Kraken/ccxt + RSI/Bollinger + fitness OOS + **GA** + grid search): **PROSSIMO**, 0/10 task.
-- **Plan C/D** (persistenza+CLI, server+UI): scritti, non iniziati.
+- **Backtest Suite (Plan A–D)**: **COMPLETA** ✓ — engine generico, data lake Kraken, RSI/Bollinger, fitness OOS + GA + grid, persistenza SQLite/parquet, CLI `hermes-bt`, server FastAPI + UI.
+- **Strategy Arena F1** (10 strategie nel registry): **COMPLETA** ✓.
+- **Strategy Arena F2** (`backtest_suite/arena/`: core torneo GA-only, evolve strategy+risk params, persistenza propria): **COMPLETA** ✓ — 170 test verdi.
+- **Prossimo:** Arena **F3** (`LLMProposer` + `llm_client` + cache).
 
-Regola architetturale: `backtest_suite/` può importare da `hermes_trading/`, MAI il contrario.
+Regola architetturale: `backtest_suite/` può importare da `hermes_trading/`, MAI il contrario; e `arena/` importa da `backtest_suite/`, MAI il contrario.
 
 ## Cosa MANCA (TODO prioritari)
 

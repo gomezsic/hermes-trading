@@ -1,8 +1,8 @@
 # Strategy Arena — 10 agenti LLM-evolutivi in competizione
 
 **Data:** 2026-05-31
-**Stato:** approvato in brainstorming, pronto per writing-plans
-**Branch atteso:** dev
+**Stato:** F1 + F2 COMPLETATE (2026-06-03); F3 (LLM) prossima. Vedi `docs/superpowers/BACKTEST_SUITE_STATUS.md` → sezione Strategy Arena.
+**Branch:** dev
 
 ## 1. Obiettivo
 
@@ -160,9 +160,9 @@ Estensione del server FastAPI esistente:
 
 Ognuna testabile da sola; ordine consigliato:
 
-- **F1 — Strategie**: le 7 nuove famiglie + relativi `param_specs` e test.
-- **F2 — Core arena**: `agent.py`, `proposer.py` (interfaccia + `RandomGAProposer`), `fitness.py`, `tournament.py`, persistenza. Funziona end-to-end col solo baseline GA.
-- **F3 — LLM**: `LLMProposer` + `llm_client.py` + cache; integrazione nel loop.
+- **F1 — Strategie**: le 7 nuove famiglie + relativi `param_specs` e test. ✅ **COMPLETA (2026-06-03)**
+- **F2 — Core arena**: `agent.py`, `proposer.py` (interfaccia + `RandomGAProposer`), `fitness.py`, `tournament.py`, persistenza. Funziona end-to-end col solo baseline GA. ✅ **COMPLETA (2026-06-03)** — `backtest_suite/arena/`, plan `docs/superpowers/plans/2026-06-03-strategy-arena-F2-core-arena.md`. NB: l'arena evolve il genome completo (strategy **e** risk params).
+- **F3 — LLM**: `LLMProposer` + `llm_client.py` + cache; integrazione nel loop. ⏳ **PROSSIMA**
 - **F4 — UI**: vista Arena nel server FastAPI.
 
 ## 14. Dipendenze e rischi noti
